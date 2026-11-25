@@ -47,6 +47,7 @@ export function headerMarkup(data, route = { page: 'home' }, bagCount = 0) {
             <a href="#contact" class="${isActiveRoute(route, ['contact']) ? 'is-active' : ''}">${e(data.footer.contactLabel)}</a>
             <a href="#site-rules" class="${isActiveRoute(route, ['site-rules']) ? 'is-active' : ''}">${e(data.policies.rulesTitle)}</a>
             <div class="nav-dropdown-sep"></div>
+            <a href="redesign/">Redesigned Site ↗</a>
             <a href="#admin">Admin Studio ↗</a>
           </div>
         </div>
@@ -69,6 +70,7 @@ export function headerMarkup(data, route = { page: 'home' }, bagCount = 0) {
       <a href="#wizard" class="${isActiveRoute(route, ['wizard']) ? 'is-active' : ''}">${e(n.wizard)}</a>
       <a href="#contact" class="${isActiveRoute(route, ['contact']) ? 'is-active' : ''}">${e(data.footer.contactLabel)}</a>
       <a href="#site-rules" class="${isActiveRoute(route, ['site-rules']) ? 'is-active' : ''}">${e(data.policies.rulesTitle)}</a>
+      <a href="redesign/">Redesigned Site ↗</a>
       <a href="#admin">Admin Studio ↗</a>
     </nav>
   </header>`;
@@ -578,7 +580,8 @@ export function footerMarkup(data) {
         <div>${e(f.copyrightLine1)}</div>
         <div>${e(f.copyrightLine2)}</div>
       </div>
-      <div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <a href="redesign/" class="text-link">Redesigned Site ↗</a>
         <a href="#admin" class="text-link">Admin Studio</a>
       </div>
     </div>
