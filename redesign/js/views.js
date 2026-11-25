@@ -237,13 +237,6 @@ export function homeMarkup(data) {
 
       <div class="teal-media-wrap" data-reveal>
         <img class="teal-photo" src="${e(safeImage(a.founderPhoto, 'assets/images/founder-anupama.jpeg'))}" alt="Founder ${e(a.founderName)}">
-        <a href="#courses" class="polaroid-inset">
-          <img src="${e(safeImage(cp.kitImage))}" alt="${e(cp.kitHeading)}">
-          <div class="polaroid-inset-meta">
-            <strong>7-Piece Kit</strong>
-            <span>See all items →</span>
-          </div>
-        </a>
       </div>
     </div>
   </section>

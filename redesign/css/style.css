@@ -535,8 +535,7 @@ button { cursor: pointer; background: none; border: 0; }
 
 .teal-media-wrap {
   position: relative;
-  padding-left: 34px;
-  padding-bottom: 24px;
+  padding: 0;
 }
 
 .teal-photo {
@@ -546,43 +545,6 @@ button { cursor: pointer; background: none; border: 0; }
   object-fit: cover;
   object-position: center 22%;
 }
-
-.polaroid-inset {
-  position: absolute;
-  top: -18px;
-  right: -12px;
-  width: 190px;
-  background: var(--surface);
-  color: var(--ink);
-  border: var(--stroke);
-  border-radius: 18px;
-  padding: 9px 9px 11px;
-  box-shadow: 0 14px 32px rgba(5, 35, 40, 0.32);
-  transform: rotate(6deg) translateY(18px);
-  opacity: 0;
-  transition: transform 0.65s var(--ease-snap), opacity 0.6s ease;
-  cursor: pointer;
-  display: block;
-}
-.polaroid-inset.is-revealed {
-  opacity: 1;
-  transform: rotate(5deg) translateY(0);
-}
-.polaroid-inset:hover { transform: rotate(0deg) scale(1.04); }
-.polaroid-inset img {
-  width: 100%;
-  aspect-ratio: 1.2 / 1;
-  object-fit: cover;
-  border-radius: 11px;
-}
-.polaroid-inset-meta {
-  display: grid;
-  gap: 2px;
-  text-align: center;
-  margin-top: 7px;
-}
-.polaroid-inset-meta strong { font-size: 12px; font-weight: 800; }
-.polaroid-inset-meta span { font-size: 11px; font-weight: 600; color: var(--ink-muted); }
 
 /* Mobile Infinitely Rolling 35mm Filmstrip */
 .mobile-filmstrip { display: none; }
@@ -1249,7 +1211,7 @@ button { cursor: pointer; background: none; border: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-  .char-reveal .ch, [data-reveal], .polaroid-inset { opacity: 1 !important; transform: none !important; }
+  .char-reveal .ch, [data-reveal] { opacity: 1 !important; transform: none !important; }
 }
 
 @media (max-width: 1140px) {
@@ -1263,8 +1225,6 @@ button { cursor: pointer; background: none; border: 0; }
   .mobile-filmstrip { display: block; width: 100%; overflow: hidden; padding-block: 8px; }
   .film { flex: 0 0 245px; }
   .teal-grid, .split-grid, .courses-grid, .kit-grid, .checkout-grid, .policy-layout { grid-template-columns: 1fr; }
-  .teal-media-wrap { padding: 0; }
-  .polaroid-inset { top: -12px; right: -4px; width: 158px; }
   .rail-header { grid-template-columns: 1fr; gap: 10px; }
   .events-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .steps-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1302,20 +1262,6 @@ button { cursor: pointer; background: none; border: 0; }
   .teal-band { padding: 46px 0 54px; }
   .teal-title { font-size: clamp(1.85rem, 7.8vw, 2.5rem); }
   .teal-photo { aspect-ratio: 4 / 3.5; border-radius: 20px; }
-  .polaroid-inset,
-  .polaroid-inset.is-revealed {
-    position: static;
-    transform: none;
-    width: 100%;
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: 74px minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-  }
-  .polaroid-inset img { aspect-ratio: 1 / 1; }
-  .polaroid-inset-meta { text-align: left; margin-top: 0; }
 
   .testimonial-grid { grid-template-columns: 1fr; }
   .quote-card.is-desktop-extra { display: none; }

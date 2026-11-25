@@ -296,7 +296,7 @@ function startCarousels() {
 
 function observeReveals(instant = false) {
   revealObserver?.disconnect();
-  const targets = [...document.querySelectorAll('.char-reveal, [data-reveal], .polaroid-inset')];
+  const targets = [...document.querySelectorAll('.char-reveal, [data-reveal]')];
   if (!targets.length) return;
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   if (instant || reduced || typeof IntersectionObserver === 'undefined') {
