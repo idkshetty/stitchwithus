@@ -84,6 +84,16 @@ test('dev persistence server serves static files, admin auth, site-data CRUD, an
     const homeHtml = await homeRes.text();
     assert.match(homeHtml, /You Can Stitch With Us/);
 
+    // Standalone UI/UX redesign folder routes
+    const redesignIndex = await fetch(`${baseUrl}/redesign/`);
+    assert.equal(redesignIndex.status, 200);
+    assert.match(await redesignIndex.text(), /Shrikhand/);
+    assert.equal((await fetch(`${baseUrl}/redesign/css/style.css`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/redesign/js/app.js`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/redesign/shared/site-content.js`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/redesign/assets/images/logo-nav.png`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/redesign/img/embroidery-bg.jpg`)).status, 200);
+
     const healthRes = await fetch(`${baseUrl}/api/health`);
     assert.equal(healthRes.status, 200);
     assert.deepEqual(await healthRes.json(), { ok: true, service: 'ycswu-backend' });

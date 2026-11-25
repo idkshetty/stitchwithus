@@ -7,6 +7,7 @@ import { startBackendServer } from '../backend/server.mjs';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND_DIR = path.join(ROOT_DIR, 'frontend');
+const REDESIGN_DIR = path.join(ROOT_DIR, 'redesign');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -86,9 +87,30 @@ export async function startServer({
         return;
       }
 
+      if (pathname === '/redesign') {
+        res.writeHead(302, { Location: '/redesign/' });
+        res.end();
+        return;
+      }
+
       let relative = pathname;
-      if (relative === '/') relative = '/index.html';
-      else if (relative.toLowerCase() === '/admin') relative = '/admin.html';
+      let baseDir = FRONTEND_DIR;
+      if (relative.startsWith('/redesign/')) {
+        const sub = relative.slice('/redesign/'.length) || 'index.html';
+        if (sub.startsWith('shared/')) {
+          baseDir = path.join(FRONTEND_DIR, 'js');
+          relative = '/' + sub.slice('shared/'.length);
+        } else if (sub.startsWith('assets/')) {
+          baseDir = path.join(FRONTEND_DIR, 'assets');
+          relative = '/' + sub.slice('assets/'.length);
+        } else {
+          baseDir = REDESIGN_DIR;
+          relative = '/' + sub;
+        }
+      } else {
+        if (relative === '/') relative = '/index.html';
+        else if (relative.toLowerCase() === '/admin') relative = '/admin.html';
+      }
 
       const segments = relative.toLowerCase().split('/');
       if (
@@ -100,62 +122,62 @@ export async function startServer({
         return;
       }
 
-      const filename = path.resolve(FRONTEND_DIR, '.' + relative);
-      if (!filename.startsWith(FRONTEND_DIR + path.sep)) {
-        res.writeHead(403);
-        res.end('Forbidden');
-        return;
-      }
+        const filename = path.resolve(baseDir, '.' + relative);
+        if (!filename.startsWith(baseDir + path.sep)) {
+          res.writeHead(403);
+          res.end('Forbidden');
+          return;
+        }
 
-      const ext = path.extname(filename).toLowerCase();
-      if (!MIME_TYPES[ext]) {
-        res.writeHead(403);
-        res.end('Forbidden');
-        return;
-      }
+        const ext = path.extname(filename).toLowerCase();
+        if (!MIME_TYPES[ext]) {
+          res.writeHead(403);
+          res.end('Forbidden');
+          return;
+        }
 
-      const info = await stat(filename);
-      if (!info.isFile()) throw new Error('Not a file');
+        const info = await stat(filename);
+        if (!info.isFile()) throw new Error('Not a file');
 
-      const etag = `"${info.size}-${Math.round(info.mtimeMs)}"`;
-      const isAsset = relative.toLowerCase().startsWith('/assets/');
-      const headers = {
-        'Content-Type': MIME_TYPES[ext],
-        'Cache-Control': isAsset ? 'public, max-age=3600' : 'no-cache',
-        ETag: etag,
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        Vary: 'Accept-Encoding'
-      };
+        const etag = `"${info.size}-${Math.round(info.mtimeMs)}"`;
+        const isAsset = relative.toLowerCase().startsWith('/assets/');
+        const headers = {
+          'Content-Type': MIME_TYPES[ext],
+          'Cache-Control': isAsset ? 'public, max-age=3600' : 'no-cache',
+          ETag: etag,
+          'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          Vary: 'Accept-Encoding'
+        };
 
-      if (req.headers['if-none-match'] === etag) {
-        res.writeHead(304, headers);
-        res.end();
-        return;
-      }
+        if (req.headers['if-none-match'] === etag) {
+          res.writeHead(304, headers);
+          res.end();
+          return;
+        }
 
-      let data = await readFile(filename);
-      if (
-        /gzip/.test(String(req.headers['accept-encoding'] || '')) &&
-        ['.html', '.js', '.mjs', '.css', '.svg', '.json'].includes(ext)
-      ) {
-        data = gzipSync(data);
-        headers['Content-Encoding'] = 'gzip';
-      }
+        let data = await readFile(filename);
+        if (
+          /gzip/.test(String(req.headers['accept-encoding'] || '')) &&
+          ['.html', '.js', '.mjs', '.css', '.svg', '.json'].includes(ext)
+        ) {
+          data = gzipSync(data);
+          headers['Content-Encoding'] = 'gzip';
+        }
 
-      if (req.method === 'HEAD') {
+        if (req.method === 'HEAD') {
+          res.writeHead(200, headers);
+          res.end();
+          return;
+        }
+
         res.writeHead(200, headers);
-        res.end();
-        return;
+        res.end(data);
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Not found');
       }
-
-      res.writeHead(200, headers);
-      res.end(data);
-    } catch {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Not found');
-    }
-  });
+    });
 
   await new Promise((resolve, reject) => {
     server.once('error', reject);

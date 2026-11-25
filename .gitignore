@@ -1,5 +1,6 @@
 node_modules/
 .env
+_site/
 data/*.json
 frontend/assets/uploads/
 .DS_Store
