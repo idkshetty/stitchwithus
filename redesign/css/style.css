@@ -363,13 +363,13 @@ button { cursor: pointer; background: none; border: 0; }
 .btn-outline:hover:not(:disabled) { background: var(--lime); }
 .btn-sm { padding: 8px 16px; min-height: 36px; font-size: 13px; }
 
-/* Band 1: Centered Playful Hero + 5 Orbiting Tilted Polaroid Cards */
+/* Band 1: Centered Hero */
 .hero-stage {
   position: relative;
-  min-height: clamp(580px, 78vh, 740px);
+  min-height: clamp(440px, 64vh, 620px);
   display: grid;
   place-items: center;
-  padding: clamp(56px, 7vw, 92px) var(--gutter);
+  padding: clamp(56px, 7.5vw, 96px) var(--gutter);
   overflow: hidden;
 }
 .hero-stage::before {
@@ -382,13 +382,11 @@ button { cursor: pointer; background: none; border: 0; }
   z-index: 0;
 }
 
-.hero-polaroid-field { z-index: 2; }
-
 .hero-center {
   position: relative;
   z-index: 4;
   text-align: center;
-  max-width: 520px;
+  max-width: 660px;
   padding: 28px 18px;
   display: grid;
   justify-items: center;
@@ -417,61 +415,6 @@ button { cursor: pointer; background: none; border: 0; }
   max-width: 48ch;
   font-size: 15.5px;
 }
-
-/* Polaroid Floating Cards */
-.hero-polaroid-field {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  max-width: 1320px;
-  margin-inline: auto;
-}
-
-.hero-polaroid {
-  position: absolute;
-  width: clamp(134px, 12vw, 166px);
-  background: var(--surface);
-  border: var(--stroke);
-  border-radius: 16px;
-  padding: 8px 8px 10px;
-  box-shadow: 0 8px 24px rgba(12, 26, 28, 0.08);
-  pointer-events: auto;
-  cursor: zoom-in;
-  transform:
-    translate3d(calc(var(--sx, 0) * var(--spread, 0) * 1px), calc(var(--sy, 0) * var(--spread, 0) * 1px), 0)
-    rotate(var(--rot, 0deg));
-  transition: transform 0.45s var(--ease-snap), box-shadow 0.25s ease;
-}
-.hero-polaroid:hover {
-  z-index: 8;
-  transform:
-    translate3d(calc(var(--sx, 0) * var(--spread, 0) * 1px), calc(var(--sy, 0) * var(--spread, 0) * 1px - 6px), 0)
-    rotate(0deg) scale(1.06);
-  box-shadow: 0 14px 32px rgba(12, 26, 28, 0.14);
-}
-.hero-polaroid img {
-  width: 100%;
-  aspect-ratio: 1.08 / 1;
-  object-fit: cover;
-  border-radius: 10px;
-}
-.hero-polaroid span {
-  display: block;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  margin-top: 7px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hero-polaroid.p1 { top: 3%; left: 14%; --rot: -10deg; --sx: -24; --sy: -20; }
-.hero-polaroid.p2 { top: 7%; right: 6%; --rot: 9deg; --sx: 26; --sy: -16; }
-.hero-polaroid.p3 { top: 38%; left: 2%; --rot: 6deg; --sx: -28; --sy: 4; }
-.hero-polaroid.p4 { bottom: 3%; left: 18%; --rot: -8deg; --sx: -20; --sy: 22; }
-.hero-polaroid.p5 { bottom: 6%; right: 8%; --rot: 8deg; --sx: 24; --sy: 20; }
 
 /* Band 2: Deep Indigo Embroidery Split Band with Overlapping Polaroid & Handwritten Arrow */
 .teal-band {
@@ -544,82 +487,6 @@ button { cursor: pointer; background: none; border: 0; }
   aspect-ratio: 4 / 4.2;
   object-fit: cover;
   object-position: center 22%;
-}
-
-/* Mobile Infinitely Rolling 35mm Filmstrip */
-.mobile-filmstrip { display: none; }
-.strip-marquee {
-  display: flex;
-  width: max-content;
-  animation: filmRoll 24s linear infinite;
-}
-.mobile-filmstrip:hover .strip-marquee { animation-play-state: paused; }
-@keyframes filmRoll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.strip {
-  display: flex;
-  gap: 10px;
-  padding-right: 10px;
-}
-.film {
-  flex: 0 0 215px;
-  aspect-ratio: 16 / 9;
-  border-radius: 6px;
-  background: #000;
-  background-image:
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff),
-    linear-gradient(to right, #fff, #fff);
-  background-repeat: no-repeat;
-  background-position:
-    5% 5%, 15% 5%, 25% 5%, 35% 5%, 45% 5%, 55% 5%, 65% 5%, 75% 5%, 85% 5%, 95% 5%,
-    5% 95%, 15% 95%, 25% 95%, 35% 95%, 45% 95%, 55% 95%, 65% 95%, 75% 95%, 85% 95%, 95% 95%;
-  background-size: 5% 8%;
-  display: block;
-}
-.film__frame {
-  position: relative;
-  height: 100%;
-  padding: 13% 5%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.film__frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 2px;
-}
-.film__cap {
-  position: absolute;
-  left: 8%;
-  bottom: 16%;
-  background: rgba(15, 22, 46, 0.78);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 999px;
 }
 
 /* Band 3: 01-05 "Everything in one place" Horizontal Layered Rail */
@@ -1217,13 +1084,9 @@ button { cursor: pointer; background: none; border: 0; }
 @media (max-width: 1140px) {
   .hero-stage {
     min-height: auto;
-    padding: 36px 0 40px;
-    gap: 24px;
+    padding: 40px var(--gutter) 44px;
   }
-  .hero-center { padding-inline: var(--gutter); max-width: 640px; }
-  .hero-polaroid-field { display: none; }
-  .mobile-filmstrip { display: block; width: 100%; overflow: hidden; padding-block: 8px; }
-  .film { flex: 0 0 245px; }
+  .hero-center { max-width: 640px; }
   .teal-grid, .split-grid, .courses-grid, .kit-grid, .checkout-grid, .policy-layout { grid-template-columns: 1fr; }
   .rail-header { grid-template-columns: 1fr; gap: 10px; }
   .events-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1254,10 +1117,9 @@ button { cursor: pointer; background: none; border: 0; }
   .brand-logo-img { width: 34px; height: 34px; }
   .brand-script { font-size: clamp(0.92rem, 4.1vw, 1.08rem); white-space: nowrap; gap: 7px; }
 
-  .hero-stage { padding: 26px 0 32px; gap: 20px; }
+  .hero-stage { padding: 30px var(--gutter) 38px; }
   .hero-title { font-size: clamp(2.15rem, 9.4vw, 3rem); line-height: 1; }
   .hero-sub { font-size: 14.5px; }
-  .film { flex: 0 0 212px; }
 
   .teal-band { padding: 46px 0 54px; }
   .teal-title { font-size: clamp(1.85rem, 7.8vw, 2.5rem); }

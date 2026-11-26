@@ -159,24 +159,6 @@ export function homeMarkup(data) {
   const cp = data.coursesPage;
   const courses = data.courses || [];
   const kitItems = parseKitItems(data);
-
-  const polaroids = [
-    { cls: 'p1', src: photos[0]?.src, cap: 'Built to Grow', href: '#about' },
-    { cls: 'p2', src: cp.kitImage, cap: 'Kit Shipped Free', href: '#courses' },
-    { cls: 'p3', src: photos[2]?.src || photos[0]?.src, cap: 'City Meetups', href: '#events' },
-    { cls: 'p4', src: workshops[0]?.src || photos[3]?.src, cap: 'Slow Craft', href: '#courses' },
-    { cls: 'p5', src: s.heroImage, cap: '1:1 Tailored', href: '#1-on-1' }
-  ];
-
-  const filmSlides = [
-    { src: photos[0]?.src, cap: 'Community', href: '#about' },
-    { src: courses[0]?.heroImage, cap: 'Wizard Plus', href: '#wizard-plus' },
-    { src: cp.kitImage, cap: 'Welcome Kit', href: '#courses' },
-    { src: photos[2]?.src || workshops[0]?.src, cap: 'City Meetups', href: '#events' },
-    { src: s.heroImage, cap: '1:1 Session', href: '#1-on-1' },
-    { src: courses[1]?.heroImage, cap: 'Wizard', href: '#wizard' }
-  ];
-
   const heroTitle = `${h.heroTitlePrefix}${h.heroStitchText}\n${h.heroTitleSuffix.trim()}`;
 
   return `<section class="hero-stage">
@@ -195,26 +177,6 @@ export function homeMarkup(data) {
         </span>
         <span class="btn-lime-circle" aria-hidden="true">→</span>
       </a>
-    </div>
-
-    <div class="hero-polaroid-field" aria-label="Featured studio highlights">
-      ${polaroids.map(p => `<a href="${e(p.href)}" class="hero-polaroid ${p.cls}">
-        <img src="${e(safeImage(p.src))}" alt="${e(p.cap)}">
-        <span>${e(p.cap)}</span>
-      </a>`).join('')}
-    </div>
-
-    <div class="mobile-filmstrip" aria-label="Featured studio filmstrip">
-      <div class="strip-marquee">
-        ${[0, 1].map(() => `<div class="strip">
-          ${filmSlides.map(item => `<a href="${e(item.href)}" class="film">
-            <div class="film__frame">
-              <img src="${e(safeImage(item.src))}" alt="${e(item.cap)}">
-              <span class="film__cap">${e(item.cap)}</span>
-            </div>
-          </a>`).join('')}
-        </div>`).join('')}
-      </div>
     </div>
   </section>
 

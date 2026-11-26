@@ -80,17 +80,6 @@ function updateScrollEffects() {
   const progress = Math.min(1, Math.max(0, window.scrollY / maxScroll));
   const bar = document.getElementById('scroll-progress');
   if (bar) bar.style.setProperty('--scroll-p', progress.toFixed(4));
-
-  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-  const field = document.querySelector('.hero-polaroid-field');
-  if (field) {
-    if (window.innerWidth > 1140 && !reduced) {
-      const spread = Math.min(1.4, Math.max(0, window.scrollY / 280));
-      field.style.setProperty('--spread', spread.toFixed(3));
-    } else {
-      field.style.setProperty('--spread', '0');
-    }
-  }
 }
 
 function onScroll() {
