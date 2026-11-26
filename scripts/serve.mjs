@@ -7,7 +7,6 @@ import { startBackendServer } from '../backend/server.mjs';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND_DIR = path.join(ROOT_DIR, 'frontend');
-const REDESIGN_DIR = path.join(ROOT_DIR, 'redesign');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -87,30 +86,16 @@ export async function startServer({
         return;
       }
 
-      if (pathname === '/redesign') {
-        res.writeHead(302, { Location: '/redesign/' });
+      if (pathname === '/redesign' || pathname.startsWith('/redesign/')) {
+        res.writeHead(302, { Location: '/' });
         res.end();
         return;
       }
 
       let relative = pathname;
-      let baseDir = FRONTEND_DIR;
-      if (relative.startsWith('/redesign/')) {
-        const sub = relative.slice('/redesign/'.length) || 'index.html';
-        if (sub.startsWith('shared/')) {
-          baseDir = path.join(FRONTEND_DIR, 'js');
-          relative = '/' + sub.slice('shared/'.length);
-        } else if (sub.startsWith('assets/')) {
-          baseDir = path.join(FRONTEND_DIR, 'assets');
-          relative = '/' + sub.slice('assets/'.length);
-        } else {
-          baseDir = REDESIGN_DIR;
-          relative = '/' + sub;
-        }
-      } else {
-        if (relative === '/') relative = '/index.html';
-        else if (relative.toLowerCase() === '/admin') relative = '/admin.html';
-      }
+      const baseDir = FRONTEND_DIR;
+      if (relative === '/') relative = '/index.html';
+      else if (relative.toLowerCase() === '/admin') relative = '/admin.html';
 
       const segments = relative.toLowerCase().split('/');
       if (

@@ -35,6 +35,7 @@ for (const file of jsFiles) {
 }
 
 const assetPaths = collectAssetPaths(DEFAULT_CONTENT);
+assetPaths.add('assets/images/embroidery-bg.jpg');
 let checkedAssets = 0;
 for (const rel of assetPaths) {
   const full = path.join(FRONTEND, rel);

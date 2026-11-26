@@ -30,13 +30,14 @@ export function buildPreviewDocumentHtml(data, page = 'home') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <base href="${e(baseHref)}">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Lora:ital,wght@0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Shrikhand&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <style>
     a,button,input,select,textarea{pointer-events:none}
-    body{overflow-x:hidden}
+    body{overflow-x:hidden;padding-bottom:0!important}
     .site-header{position:relative}
-    [data-reveal]{opacity:1!important;transform:none!important}
+    .char-reveal .ch,[data-reveal]{opacity:1!important;transform:none!important}
+    .mobile-tabbar,.scroll-progress{display:none!important}
     [data-edit-highlight="true"]{
       outline:2px solid #d94e41!important;
       outline-offset:4px!important;

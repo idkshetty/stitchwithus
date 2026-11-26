@@ -152,8 +152,8 @@ export function mountInlineEditing({
         if (targetMap.has(el)) return;
         if (ignoreSelector && el.closest?.(ignoreSelector)) return;
         if (!jump) {
-          if (el.children && el.children.length) return;
-          if (!target.allowMismatch && typeof target.value === 'string' && readText(el) !== target.value) return;
+          if (!target.allowChildren && el.children && el.children.length) return;
+          if (!target.allowMismatch && !target.allowChildren && typeof target.value === 'string' && readText(el) !== target.value) return;
         }
         el.setAttribute('data-inline-editable', target.id);
         el.setAttribute('data-inline-kind', jump ? 'pick' : 'text');
@@ -178,7 +178,10 @@ export function mountInlineEditing({
 
   function startEdit(targetDoc, el, target, x, y) {
     if (editing) commit();
-    editing = { el, target, original: readText(el), cancelled: false, whiteSpace: el.style.whiteSpace || '' };
+    const originalHtml = target.allowChildren ? el.innerHTML : null;
+    const original = target.allowChildren && typeof target.value === 'string' ? target.value : readText(el);
+    editing = { el, target, original, originalHtml, cancelled: false, whiteSpace: el.style.whiteSpace || '' };
+    if (target.allowChildren) el.textContent = original;
     el.setAttribute('data-inline-editing', 'true');
     el.setAttribute('contenteditable', 'plaintext-only');
     if (!el.isContentEditable) el.setAttribute('contenteditable', 'true');
@@ -186,14 +189,15 @@ export function mountInlineEditing({
     if (target.multiline) el.style.whiteSpace = 'pre-wrap';
     el.addEventListener('blur', onBlur);
     el.focus?.({ preventScroll: true });
-    placeCaretAt(targetDoc, el, x, y);
+    if (target.allowChildren) setCaretEnd(targetDoc, el);
+    else placeCaretAt(targetDoc, el, x, y);
     onState?.(true);
     onStart?.(target, el);
   }
 
   function commit() {
     if (!editing) return;
-    const { el, target, original, cancelled, whiteSpace } = editing;
+    const { el, target, original, originalHtml, cancelled, whiteSpace } = editing;
     editing = null;
     el.removeEventListener('blur', onBlur);
     el.removeAttribute('contenteditable');
@@ -204,7 +208,8 @@ export function mountInlineEditing({
     if (el.getAttribute('style') === '') el.removeAttribute('style');
     let text = cancelled ? original : finalNormalize(target, readText(el));
     if (target.required && !text) text = original;
-    el.textContent = text;
+    if (cancelled && originalHtml !== null) el.innerHTML = originalHtml;
+    else el.textContent = text;
     const targetDoc = el.ownerDocument;
     if (targetDoc) mirror(targetDoc, el, target, text);
     const switching = Boolean(switchingTo);

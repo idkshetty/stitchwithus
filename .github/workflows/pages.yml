@@ -25,11 +25,8 @@ jobs:
       - name: Assemble Pages bundle
         run: |
           rm -rf _site
-          mkdir -p _site/redesign
+          mkdir -p _site
           cp -r frontend/. _site/
-          cp -r redesign/. _site/redesign/
-          cp -r frontend/js _site/redesign/shared
-          cp -r frontend/assets _site/redesign/assets
           touch _site/.nojekyll
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

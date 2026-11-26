@@ -2,6 +2,7 @@ import {
   CONTENT_SCHEMA,
   DEFAULT_CONTENT,
   escapeHTML as e,
+  formatINR,
   normalizeContent,
   normalizeCourse,
   normalizeEvent,
@@ -11,17 +12,26 @@ import {
 import { contentInlineTargets } from './live-site-editor.js';
 import { flashControl } from './inline-edit.js';
 import { mountSitePreviewPanel } from './site-preview.js';
+import { clearAnalyticsData, loadAnalyticsSummary } from './analytics.js';
 import {
   deleteSubmission,
+  loadOrders,
   loadSubmissions,
   loginAdmin,
   logoutAdmin,
   resetSiteContent,
+  updateOrder,
   updateSubmissionStatus,
   uploadImageFile
 } from './storage.js';
 
 const ADMIN_GROUPS = [
+  {
+    label: 'Insights & tracking',
+    items: [
+      ['overview', 'Dashboard & tracking']
+    ]
+  },
   {
     label: 'Design & content',
     items: [
@@ -36,7 +46,7 @@ const ADMIN_GROUPS = [
   {
     label: 'Operations',
     items: [
-      ['orders', 'Orders & payments'],
+      ['orders', 'Orders & tracking'],
       ['inquiries', 'Inquiries & bookings'],
       ['backup', 'Backup & reset']
     ]
@@ -44,12 +54,14 @@ const ADMIN_GROUPS = [
 ];
 
 const POLICY_TABS = [
-  ['terms', 'Terms of Service', 'home'],
+  ['terms', 'Terms of Service', 'terms'],
   ['privacy', 'Privacy Policy', 'privacy'],
   ['shipping', 'Shipping & Refunds', 'shipping'],
   ['usage', 'Usage & Guidelines', 'usage-guidelines'],
   ['rules', 'Site Rules', 'site-rules']
 ];
+
+const FULFILLMENT_STATES = ['new', 'contacted', 'packed', 'shipped', 'delivered', 'completed', 'cancelled'];
 
 const csvSafe = val => {
   const s = String(val ?? '').replace(/\r?\n/g, ' ');
@@ -57,31 +69,48 @@ const csvSafe = val => {
   return `"${safe.replace(/"/g, '""')}"`;
 };
 
+const shortTime = iso => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return String(iso).slice(0, 16);
+  }
+};
+
 export function renderAdminStudio(root, {
   authenticated,
   demoPasscodeHint,
   data,
-  routeTab = 'content',
+  routeTab = 'overview',
   onAuthChange,
   onSaveData,
   onToast,
   onOpenPreviewModal
 }) {
   const validTabs = new Set(ADMIN_GROUPS.flatMap(g => g.items.map(([id]) => id)));
-  const activeTab = validTabs.has(routeTab) ? routeTab : 'content';
+  const activeTab = validTabs.has(routeTab) ? routeTab : 'overview';
 
   if (!authenticated) {
     root.innerHTML = `<section class="admin-login-wrap">
       <div class="admin-login-card">
         <p class="eyebrow">You Can Stitch With Us · Studio</p>
         <h1>Admin Sign In</h1>
-        <p class="small muted">Sign in to edit page copy, upload images, manage courses &amp; workshops, update policies, and review bookings.</p>
+        <p class="small muted">Sign in to edit the storefront, monitor site analytics and conversion tracking, manage courses &amp; workshops, and track orders.</p>
         <form class="form-stack" id="admin-login-form">
           <label class="field">Admin Passcode
             <input type="password" name="password" required autocomplete="current-password" placeholder="Enter passcode">
           </label>
-          <p class="small muted" id="admin-login-error" style="color:var(--coral-deep);margin:0" hidden></p>
-          <button type="submit" class="btn btn-olive">Sign in to Admin Studio</button>
+          <p class="small" id="admin-login-error" style="color:var(--rose-deep);margin:0" hidden></p>
+          <button type="submit" class="btn-lime" style="justify-content:center">
+            <span>Sign in to Admin Studio</span>
+            <span class="btn-lime-circle" aria-hidden="true">→</span>
+          </button>
           ${demoPasscodeHint ? `<button type="button" class="btn btn-outline" id="demo-admin-btn">Use local demo passcode (${e(demoPasscodeHint)})</button>` : ''}
         </form>
         <p class="small muted" style="margin:0"><a href="#home" class="text-link">← Back to public website</a></p>
@@ -116,6 +145,10 @@ export function renderAdminStudio(root, {
   let activePolicySubtab = 'terms';
   let activeGalleryKey = 'homeCommunity';
   let activeInquiryFilter = 'all';
+  let activeOrderFilter = 'all';
+  let orderQuery = '';
+  let inquiryQuery = '';
+  let activeDays = 0;
   let submissions = [];
   let previewCtrl = null;
   let busy = false;
@@ -131,15 +164,15 @@ export function renderAdminStudio(root, {
       </select>
       <button type="button" class="btn btn-outline btn-sm" data-admin-action="open-preview">Preview</button>
       <a class="btn btn-outline btn-sm" href="#home">Live ↗</a>
-      <button type="button" class="btn btn-outline btn-sm" data-admin-action="logout" style="color:var(--coral-deep)">Sign out</button>
+      <button type="button" class="btn btn-outline btn-sm" data-admin-action="logout" style="color:var(--rose-deep)">Sign out</button>
     </div>`;
   }
 
-  function sidebarHtml(newCount = 0) {
+  function sidebarHtml(newInqCount = 0, pendingOrdCount = 0) {
     return `<aside class="admin-sidebar">
       <div>
         <p class="eyebrow" style="margin:0 0 4px 10px">Stitch Studio</p>
-        <p class="small muted" style="margin:0 0 0 10px">Editable Admin</p>
+        <p class="small muted" style="margin:0 0 0 10px">Admin &amp; Tracking</p>
       </div>
       <nav class="admin-nav" aria-label="Admin navigation">
         ${ADMIN_GROUPS.map(group => `<div>
@@ -147,7 +180,8 @@ export function renderAdminStudio(root, {
           <div class="admin-nav-items">
             ${group.items.map(([id, label]) => `<a href="#admin/${id}" class="admin-tab ${activeTab === id ? 'is-active' : ''}">
               <span>${e(label)}</span>
-              ${id === 'inquiries' && newCount ? `<span class="admin-badge">${newCount}</span>` : ''}
+              ${id === 'inquiries' && newInqCount ? `<span class="admin-badge">${newInqCount}</span>` : ''}
+              ${id === 'orders' && pendingOrdCount ? `<span class="admin-badge">${pendingOrdCount}</span>` : ''}
             </a>`).join('')}
           </div>
         </div>`).join('')}
@@ -155,22 +189,23 @@ export function renderAdminStudio(root, {
       <div class="admin-sidebar-foot">
         <button type="button" class="admin-tab" data-admin-action="open-preview"><span>Site preview</span><span aria-hidden="true">👁</span></button>
         <a class="admin-tab" href="#home">View live site ↗</a>
-        <button type="button" class="admin-tab" data-admin-action="logout" style="color:var(--coral-deep)">Sign out</button>
+        <button type="button" class="admin-tab" data-admin-action="logout" style="color:var(--rose-deep)">Sign out</button>
       </div>
     </aside>`;
   }
 
-  function renderShell(newCount = 0) {
+  function renderShell() {
     previewCtrl?.dispose();
     previewCtrl = null;
     root.innerHTML = `<div class="admin-layout">
       ${mobileBarHtml()}
-      ${sidebarHtml(newCount)}
+      ${sidebarHtml()}
       <section class="admin-main" id="admin-tab-body"></section>
     </div>`;
 
     const body = root.querySelector('#admin-tab-body');
-    if (activeTab === 'content') renderContentEditorTab(body);
+    if (activeTab === 'overview') renderOverviewTab(body);
+    else if (activeTab === 'content') renderContentEditorTab(body);
     else if (activeTab === 'courses') renderCoursesTab(body);
     else if (activeTab === 'events') renderEventsTab(body);
     else if (activeTab === 'testimonials') renderTestimonialsTab(body);
@@ -213,6 +248,211 @@ export function renderAdminStudio(root, {
     } finally {
       busy = false;
     }
+  }
+
+  async function renderOverviewTab(container) {
+    const ranges = [
+      [1, 'Today'],
+      [7, '7 Days'],
+      [30, '30 Days'],
+      [0, 'All Time']
+    ];
+
+    container.innerHTML = `<div class="admin-head">
+      <div>
+        <p class="eyebrow">Live Site Analytics &amp; Operations</p>
+        <h1>Dashboard &amp; tracking</h1>
+        <p>Monitor page visits, checkout conversion funnel, offering performance, promo usage, and customer activity in real time.</p>
+      </div>
+      <div class="admin-head-actions">
+        <button type="button" class="btn btn-outline btn-sm" data-ov-refresh>↻ Refresh</button>
+        <button type="button" class="btn btn-dark btn-sm" data-ov-export>Export Tracking CSV</button>
+      </div>
+    </div>
+    <div class="policy-subnav" role="group" aria-label="Analytics time range">
+      ${ranges.map(([d, lbl]) => `<button type="button" class="policy-subtab ${activeDays === d ? 'is-active' : ''}" data-ov-days="${d}">${e(lbl)}</button>`).join('')}
+    </div>
+    <div id="overview-body"><p class="muted">Loading live metrics…</p></div>`;
+
+    const bodyEl = container.querySelector('#overview-body');
+    let lastSummary = null;
+
+    const draw = async () => {
+      lastSummary = await loadAnalyticsSummary(activeDays, data);
+      const k = lastSummary.kpis || {};
+      const funnel = lastSummary.funnel || [];
+      const daily = lastSummary.daily || [];
+      const maxViews = Math.max(1, ...daily.map(d => d.views));
+      const topPages = lastSummary.topPages || [];
+      const devTotal = Math.max(1, (lastSummary.devices?.desktop || 0) + (lastSummary.devices?.mobile || 0) + (lastSummary.devices?.tablet || 0));
+      const refs = lastSummary.referrers || [];
+      const offerings = lastSummary.offerings || [];
+      const coupons = lastSummary.coupons || [];
+      const activity = lastSummary.recentActivity || [];
+
+      bodyEl.innerHTML = `<div class="kpi-grid">
+        <div class="kpi-card is-accent">
+          <span class="kpi-label">Paid Revenue</span>
+          <span class="kpi-value">${e(formatINR(k.paidRevenue || 0))}</span>
+          <span class="kpi-sub">Avg order: ${e(formatINR(k.averageOrderValue || 0))}</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Orders</span>
+          <span class="kpi-value">${e(k.totalOrders || 0)}</span>
+          <span class="kpi-sub">${e(k.paidOrders || 0)} paid · ${e(k.pendingOrders || 0)} pending · ${e(k.failedOrders || 0)} failed</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Page Views</span>
+          <span class="kpi-value">${e(k.pageViews || 0)}</span>
+          <span class="kpi-sub">${e(k.bagAdds || 0)} bag adds · ${e(k.outboundClicks || 0)} outbound clicks</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Unique Visitors</span>
+          <span class="kpi-value">${e(k.uniqueVisitors || 0)}</span>
+          <span class="kpi-sub">Active sessions tracked</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Conversion Rate</span>
+          <span class="kpi-value">${e(k.conversionRate || 0)}%</span>
+          <span class="kpi-sub">${e(k.checkoutStarts || 0)} checkouts started</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Inquiries &amp; Leads</span>
+          <span class="kpi-value">${e(k.totalSubmissions || 0)}</span>
+          <span class="kpi-sub">${e(k.unreadSubmissions || 0)} unread new</span>
+        </div>
+      </div>
+
+      <div class="analytics-grid">
+        <section class="analytics-card">
+          <h2>Conversion Funnel</h2>
+          <div class="funnel-list">
+            ${funnel.map(f => `<div class="funnel-row">
+              <div class="funnel-meta">
+                <span>${e(f.label)}</span>
+                <span class="tabular">${e(f.count)} (${e(f.rate)}%)</span>
+              </div>
+              <div class="funnel-bar-track"><div class="funnel-bar-fill" style="width:${Math.max(f.count ? 4 : 0, Math.min(100, f.rate))}%"></div></div>
+            </div>`).join('')}
+          </div>
+        </section>
+
+        <section class="analytics-card">
+          <h2>Daily Traffic &amp; Orders (Last ${daily.length} Days)</h2>
+          <div class="trend-chart">
+            ${daily.map(d => {
+              const h = d.views ? Math.max(8, Math.round((d.views / maxViews) * 100)) : 4;
+              return `<div class="trend-col" title="${e(d.date)}: ${d.views} views, ${d.orders} orders (${formatINR(d.revenue)})">
+                ${d.orders ? `<span class="trend-badge">${d.orders}</span>` : ''}
+                <div class="trend-bar-wrap"><div class="trend-bar" style="height:${h}%"></div></div>
+                <span class="trend-date">${e(d.date.slice(5))}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </section>
+
+        <section class="analytics-card">
+          <h2>Top Visited Pages</h2>
+          ${topPages.length ? `<div class="breakdown-list">
+            ${topPages.map(p => `<div class="breakdown-row">
+              <div class="breakdown-top"><span>${e(p.route)}</span><span class="tabular">${e(p.views)} views (${e(p.share)}%)</span></div>
+              <div class="funnel-bar-track"><div class="funnel-bar-fill" style="width:${Math.max(4, p.share)}%"></div></div>
+            </div>`).join('')}
+          </div>` : `<p class="small muted" style="margin:0">Browse public routes (#home, #courses, #events) to populate page visit data.</p>`}
+        </section>
+
+        <section class="analytics-card">
+          <h2>Devices &amp; Traffic Sources</h2>
+          <div class="breakdown-list">
+            ${[['Desktop', lastSummary.devices?.desktop || 0], ['Mobile', lastSummary.devices?.mobile || 0], ['Tablet', lastSummary.devices?.tablet || 0]].map(([lbl, cnt]) => {
+              const pct = Math.round((cnt / devTotal) * 100);
+              return `<div class="breakdown-row">
+                <div class="breakdown-top"><span>${lbl}</span><span class="tabular">${cnt} (${pct}%)</span></div>
+                <div class="funnel-bar-track"><div class="funnel-bar-fill" style="width:${cnt ? Math.max(4, pct) : 0}%"></div></div>
+              </div>`;
+            }).join('')}
+          </div>
+          ${refs.length ? `<div style="border-top:1px solid var(--line);padding-top:10px;display:grid;gap:6px">
+            <span class="eyebrow" style="margin:0">Referrers</span>
+            ${refs.map(r => `<div class="breakdown-top small"><span>${e(r.source)}</span><span class="tabular">${e(r.count)}</span></div>`).join('')}
+          </div>` : ''}
+        </section>
+
+        <section class="analytics-card">
+          <h2>Offerings Performance</h2>
+          <div class="breakdown-list">
+            ${offerings.map(o => `<div class="activity-item">
+              <div><strong>${e(o.name)}</strong><div class="small muted">${e(o.bagAdds)} bag adds · ${e(o.orders)} paid qty</div></div>
+              <strong class="tabular">${e(formatINR(o.revenue))}</strong>
+            </div>`).join('')}
+          </div>
+        </section>
+
+        <section class="analytics-card">
+          <h2>Promo Codes &amp; Quick Shortcuts</h2>
+          ${coupons.length ? `<div class="breakdown-list">
+            ${coupons.map(c => `<div class="activity-item">
+              <div><strong>${e(c.code)}</strong><div class="small muted">${e(c.uses)} redemptions</div></div>
+              <strong class="tabular">−${e(formatINR(c.totalDiscount))}</strong>
+            </div>`).join('')}
+          </div>` : `<p class="small muted" style="margin:0">No promo codes redeemed in this period (HOOPABLES15, STITCH10).</p>`}
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:auto">
+            <a href="#admin/orders" class="btn btn-outline btn-sm">Manage Orders →</a>
+            <a href="#admin/inquiries" class="btn btn-outline btn-sm">View Inquiries →</a>
+            <a href="#admin/content" class="btn-lime btn-sm">Open Storefront Editor →</a>
+          </div>
+        </section>
+      </div>
+
+      <section class="analytics-card">
+        <div class="admin-item-head">
+          <h2>Recent Live Activity Feed</h2>
+          <span class="small muted">${activity.length} events shown</span>
+        </div>
+        ${activity.length ? `<div class="activity-feed">
+          ${activity.map(item => `<div class="activity-item">
+            <div>
+              <strong>${e(item.title)}</strong>
+              <div class="small muted">${e(item.detail)}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span class="status-pill is-${e(item.status)}">${e(item.status)}</span>
+              <span class="small muted tabular">${e(shortTime(item.createdAt))}</span>
+            </div>
+          </div>`).join('')}
+        </div>` : `<p class="small muted" style="margin:0">No activity tracked in this timeframe yet.</p>`}
+      </section>`;
+    };
+
+    await draw();
+
+    container.querySelectorAll('[data-ov-days]').forEach(btn => btn.addEventListener('click', async () => {
+      activeDays = Number(btn.getAttribute('data-ov-days') || 0);
+      container.querySelectorAll('[data-ov-days]').forEach(b => b.classList.toggle('is-active', b === btn));
+      await draw();
+    }));
+
+    container.querySelector('[data-ov-refresh]')?.addEventListener('click', async () => {
+      await draw();
+      onToast?.('Analytics refreshed');
+    });
+
+    container.querySelector('[data-ov-export]')?.addEventListener('click', () => {
+      if (!lastSummary) return;
+      const headers = ['Kind', 'Title', 'Detail', 'Status', 'Timestamp'];
+      const rows = (lastSummary.recentActivity || []).map(a => [
+        csvSafe(a.kind),
+        csvSafe(a.title),
+        csvSafe(a.detail),
+        csvSafe(a.status),
+        csvSafe(a.createdAt)
+      ].join(','));
+      const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `ycswu-tracking-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+    });
   }
 
   function renderContentEditorTab(container, onlyPolicies = false) {
@@ -267,7 +507,7 @@ export function renderAdminStudio(root, {
       <span class="content-save-state" data-save-state></span>
       <div class="content-toolbar-actions">
         <button type="button" class="btn btn-outline btn-sm" data-ed-discard>Discard changes</button>
-        <button type="button" class="btn btn-sage btn-sm" data-ed-publish>Publish changes</button>
+        <button type="button" class="btn-lime btn-sm" data-ed-publish>Publish changes</button>
       </div>
     </div>
     <p class="content-message" data-ed-msg></p>
@@ -474,9 +714,9 @@ export function renderAdminStudio(root, {
         <h1>Courses &amp; pricing</h1>
         <p>Edit course tiers, pricing, descriptions, banners, and checklist features.</p>
       </div>
-      <div style="display:flex;gap:10px">
+      <div class="admin-head-actions">
         <button type="button" class="btn btn-outline btn-sm" data-course-add>+ Add course tier</button>
-        <button type="button" class="btn btn-sage btn-sm" data-course-save>Publish courses</button>
+        <button type="button" class="btn-lime btn-sm" data-course-save>Publish courses</button>
       </div>
     </div>
     <div class="admin-cards-grid" id="courses-editor-list"></div>`;
@@ -488,7 +728,7 @@ export function renderAdminStudio(root, {
           <strong>${e(c.name)} (${e(c.currency)}${e(c.price)})</strong>
           <div style="display:flex;gap:10px;align-items:center">
             <label class="visibility-toggle"><input type="checkbox" data-c-field="featured" ${c.featured ? 'checked' : ''}> Featured tier</label>
-            ${draft.courses.length > 1 ? `<button type="button" class="text-link small" style="color:var(--coral-deep)" data-c-del="${idx}">Remove</button>` : ''}
+            ${draft.courses.length > 1 ? `<button type="button" class="text-link small" style="color:var(--rose-deep)" data-c-del="${idx}">Remove</button>` : ''}
           </div>
         </div>
         <div class="admin-two-col">
@@ -565,9 +805,9 @@ export function renderAdminStudio(root, {
         <h1>Events &amp; workshops</h1>
         <p>Add upcoming workshops/meetups, update ticket status, or edit event details.</p>
       </div>
-      <div style="display:flex;gap:10px">
+      <div class="admin-head-actions">
         <button type="button" class="btn btn-outline btn-sm" data-ev-add>+ Add workshop / meetup</button>
-        <button type="button" class="btn btn-sage btn-sm" data-ev-save>Publish events</button>
+        <button type="button" class="btn-lime btn-sm" data-ev-save>Publish events</button>
       </div>
     </div>
     <div class="admin-cards-grid" id="events-editor-list"></div>`;
@@ -577,7 +817,7 @@ export function renderAdminStudio(root, {
       listEl.innerHTML = draft.events.map((ev, idx) => `<article class="admin-item-card" data-ev-idx="${idx}">
         <div class="admin-item-head">
           <strong>${e(ev.title)}</strong>
-          <button type="button" class="text-link small" style="color:var(--coral-deep)" data-ev-del="${idx}">Delete event</button>
+          <button type="button" class="text-link small" style="color:var(--rose-deep)" data-ev-del="${idx}">Delete event</button>
         </div>
         <div class="admin-two-col">
           <label class="field">Title<input data-ev-field="title" value="${e(ev.title)}"></label>
@@ -664,7 +904,7 @@ export function renderAdminStudio(root, {
         <h1>Testimonials</h1>
         <p>Manage Home meet-up quotes and OG learner reviews shown on Courses, Events &amp; 1:1.</p>
       </div>
-      <button type="button" class="btn btn-sage btn-sm" data-t-save>Publish testimonials</button>
+      <button type="button" class="btn-lime btn-sm" data-t-save>Publish testimonials</button>
     </div>
     <div class="admin-cards-grid" id="testimonials-editor-body"></div>`;
 
@@ -674,11 +914,11 @@ export function renderAdminStudio(root, {
         <strong>${e(label)} (${draft.testimonials[key].length})</strong>
         <button type="button" class="btn btn-outline btn-sm" data-t-add="${key}">+ Add quote</button>
       </div>
-      ${draft.testimonials[key].map((t, idx) => `<div style="display:grid;gap:8px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:8px" data-t-group="${key}" data-t-idx="${idx}">
+      ${draft.testimonials[key].map((t, idx) => `<div class="field" style="display:grid;gap:8px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px" data-t-group="${key}" data-t-idx="${idx}">
         <textarea rows="2" data-t-field="quote">${e(t.quote)}</textarea>
         <div style="display:flex;gap:10px;align-items:center">
-          <input style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:6px" data-t-field="author" value="${e(t.author)}" placeholder="Author / handle">
-          <button type="button" class="text-link small" style="color:var(--coral-deep)" data-t-del="${key}:${idx}">Remove</button>
+          <input style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px" data-t-field="author" value="${e(t.author)}" placeholder="Author / handle">
+          <button type="button" class="text-link small" style="color:var(--rose-deep)" data-t-del="${key}:${idx}">Remove</button>
         </div>
       </div>`).join('')}
     </section>`;
@@ -732,7 +972,7 @@ export function renderAdminStudio(root, {
           <h1>Photo galleries</h1>
           <p>Reorder, caption, upload new photos, or remove photos from each gallery.</p>
         </div>
-        <button type="button" class="btn btn-sage btn-sm" data-g-save>Publish galleries</button>
+        <button type="button" class="btn-lime btn-sm" data-g-save>Publish galleries</button>
       </div>
       <div class="policy-subnav">
         ${Object.entries(labels).map(([k, lbl]) => `<button type="button" class="policy-subtab ${activeGalleryKey === k ? 'is-active' : ''}" data-g-tab="${k}">${e(lbl)} (${draft.galleries[k].length})</button>`).join('')}
@@ -746,11 +986,11 @@ export function renderAdminStudio(root, {
         ${items.map((item, idx) => `<div class="admin-gallery-card" data-g-idx="${idx}">
           <img src="${e(safeImage(item.src))}" alt="">
           <div class="admin-gallery-meta">
-            <input type="text" data-g-caption="${idx}" value="${e(item.caption || '')}" placeholder="Caption" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+            <input type="text" data-g-caption="${idx}" value="${e(item.caption || '')}" placeholder="Caption" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px">
             <div class="admin-gallery-actions">
               <button type="button" class="btn btn-outline btn-sm" data-g-move="${idx}:-1" ${idx === 0 ? 'disabled' : ''}>←</button>
               <button type="button" class="btn btn-outline btn-sm" data-g-move="${idx}:1" ${idx === items.length - 1 ? 'disabled' : ''}>→</button>
-              <button type="button" class="text-link small" style="color:var(--coral-deep)" data-g-del="${idx}">Remove</button>
+              <button type="button" class="text-link small" style="color:var(--rose-deep)" data-g-del="${idx}">Remove</button>
             </div>
           </div>
         </div>`).join('')}
@@ -800,72 +1040,203 @@ export function renderAdminStudio(root, {
   async function renderOrdersTab(container) {
     container.innerHTML = `<div class="admin-head">
       <div>
-        <p class="eyebrow">Checkout &amp; payments</p>
-        <h1>Orders &amp; payments</h1>
-        <p>Track all orders created from Checkout, payment status (paid / failed / pending), and fulfillment progress.</p>
+        <p class="eyebrow">Checkout &amp; Fulfillment Tracking</p>
+        <h1>Orders &amp; tracking</h1>
+        <p>Track payments, courier &amp; AWB shipment numbers, fulfillment status, and follow up on WhatsApp.</p>
+      </div>
+      <div class="admin-head-actions">
+        <button type="button" class="btn btn-outline btn-sm" data-ord-csv>Export Orders CSV</button>
       </div>
     </div>
     <div id="orders-body"><p class="muted">Loading orders…</p></div>`;
 
     const bodyEl = container.querySelector('#orders-body');
-    let orders = [];
-    try {
-      const token = localStorage.getItem('ycswu-admin-token-v1');
-      const parsedToken = token ? JSON.parse(token) : '';
-      const res = await fetch('/api/orders', {
-        headers: parsedToken ? { 'x-admin-token': parsedToken } : {},
-        cache: 'no-store'
-      });
-      if (res.ok) {
-        const json = await res.json();
-        orders = json.orders || [];
-      }
-    } catch { /* ignore */ }
+    let orders = await loadOrders();
 
     const draw = () => {
-      if (!orders.length) {
-        bodyEl.innerHTML = `<p class="muted">No checkout orders recorded yet.</p>`;
-        return;
-      }
-      bodyEl.innerHTML = `<div class="submissions-list">
-        ${orders.map(o => `<article class="submission-card">
-          <div class="submission-top">
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-              <strong>${e(o.orderId)}</strong>
-              <span class="status-pill is-${e(o.paymentStatus || 'pending')}">${e(o.paymentGateway || 'Test')} · ${e(o.paymentStatus || 'pending')}</span>
-              <span class="small muted">${e(new Date(o.createdAt).toLocaleString('en-IN'))}</span>
+      const paidList = orders.filter(o => o.paymentStatus === 'paid');
+      const paidRev = paidList.reduce((s, o) => s + Number(o.amount || 0), 0);
+      const pendingList = orders.filter(o => o.paymentStatus === 'pending' || o.paymentStatus === 'manual_pending');
+      const needsAction = orders.filter(o => !['shipped', 'delivered', 'completed', 'cancelled'].includes(o.fulfillmentStatus || 'new'));
+
+      const matchesFilter = o => {
+        if (activeOrderFilter === 'paid') return o.paymentStatus === 'paid';
+        if (activeOrderFilter === 'pending') return o.paymentStatus === 'pending' || o.paymentStatus === 'manual_pending';
+        if (activeOrderFilter === 'failed') return o.paymentStatus === 'failed';
+        if (activeOrderFilter === 'action') return !['shipped', 'delivered', 'completed', 'cancelled'].includes(o.fulfillmentStatus || 'new');
+        if (activeOrderFilter === 'done') return ['shipped', 'delivered', 'completed'].includes(o.fulfillmentStatus || 'new');
+        return true;
+      };
+
+      const q = orderQuery.trim().toLowerCase();
+      const filtered = orders.filter(o => {
+        if (!matchesFilter(o)) return false;
+        if (!q) return true;
+        const hay = `${o.orderId} ${o.customer?.name} ${o.customer?.email} ${o.customer?.phone} ${o.customer?.city} ${o.customer?.pinCode} ${o.trackingNumber} ${o.trackingCarrier} ${(o.items || []).map(i => i.name).join(' ')}`.toLowerCase();
+        return hay.includes(q);
+      });
+
+      const filters = [
+        ['all', `All (${orders.length})`],
+        ['paid', `Paid (${paidList.length})`],
+        ['pending', `Pending / Manual (${pendingList.length})`],
+        ['action', `Needs Action (${needsAction.length})`],
+        ['done', `Shipped / Done (${orders.length - needsAction.length})`]
+      ];
+
+      bodyEl.innerHTML = `<div class="kpi-grid">
+        <div class="kpi-card is-accent">
+          <span class="kpi-label">Paid Revenue</span>
+          <span class="kpi-value">${e(formatINR(paidRev))}</span>
+          <span class="kpi-sub">${paidList.length} paid orders</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Total Orders</span>
+          <span class="kpi-value">${orders.length}</span>
+          <span class="kpi-sub">${pendingList.length} awaiting payment confirm</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">Needs Fulfillment</span>
+          <span class="kpi-value">${needsAction.length}</span>
+          <span class="kpi-sub">New, contacted, or packed</span>
+        </div>
+      </div>
+
+      <div class="admin-search-row">
+        <input type="search" data-ord-search value="${e(orderQuery)}" placeholder="Search order ID, customer, email, phone, AWB tracking #…">
+      </div>
+
+      <div class="policy-subnav">
+        ${filters.map(([k, lbl]) => `<button type="button" class="policy-subtab ${activeOrderFilter === k ? 'is-active' : ''}" data-ord-filter="${k}">${e(lbl)}</button>`).join('')}
+      </div>
+
+      ${filtered.length ? `<div class="submissions-list">
+        ${filtered.map(o => {
+          const cleanPhone = String(o.customer?.phone || '').replace(/[^0-9]/g, '');
+          const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+          const trackBit = o.trackingNumber ? ` Tracking: ${o.trackingNumber}${o.trackingCarrier ? ` (${o.trackingCarrier})` : ''}.` : '';
+          const waUrl = waPhone
+            ? `https://wa.me/${waPhone}?text=${encodeURIComponent(`Hi ${o.customer?.name || ''}, update for your You Can Stitch With Us order ${o.orderId}: status is ${o.fulfillmentStatus || 'new'}.${trackBit}`)}`
+            : '';
+          return `<article class="submission-card" data-ord-card="${e(o.orderId)}">
+            <div class="submission-top">
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <strong>${e(o.orderId)}</strong>
+                <span class="status-pill is-${e(o.paymentStatus || 'pending')}">${e(o.paymentGateway || o.paymentMethod || 'Paytm')} · ${e(o.paymentStatus || 'pending')}</span>
+                <span class="status-pill is-${e(o.fulfillmentStatus || 'new')}">${e(o.fulfillmentStatus || 'new')}</span>
+                <span class="small muted tabular">${e(shortTime(o.createdAt))}</span>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                ${o.paymentStatus !== 'paid' ? `<button type="button" class="btn-lime btn-sm" data-ord-mark-paid="${e(o.orderId)}">Mark Paid</button>` : ''}
+                ${waUrl ? `<a class="btn btn-outline btn-sm" href="${e(waUrl)}" target="_blank" rel="noopener noreferrer">WhatsApp ↗</a>` : ''}
+                <select data-order-fulfill="${e(o.orderId)}" aria-label="Fulfillment status" style="padding:6px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--surface)">
+                  ${FULFILLMENT_STATES.map(st => `<option value="${st}" ${(o.fulfillmentStatus || 'new') === st ? 'selected' : ''}>${st}</option>`).join('')}
+                </select>
+              </div>
             </div>
-            <select data-order-fulfill="${e(o.orderId)}" aria-label="Fulfillment status" style="padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px">
-              ${['new', 'contacted', 'shipped', 'completed', 'cancelled'].map(st => `<option value="${st}" ${(o.fulfillmentStatus || 'new') === st ? 'selected' : ''}>${st}</option>`).join('')}
-            </select>
-          </div>
-          <div class="small" style="display:grid;gap:4px">
-            <div><strong>Customer:</strong> ${e(o.customer?.name)} (${e(o.customer?.email)} · ${e(o.customer?.phone)})</div>
-            <div><strong>Items:</strong> ${e((o.items || []).map(i => `${i.name} (₹${i.price})`).join(', '))} · <strong>Total: ₹${e(o.amount)}</strong></div>
-            ${o.paytmTxnId ? `<div><strong>Txn ID:</strong> ${e(o.paytmTxnId)}</div>` : ''}
-            ${o.customer?.address ? `<div><strong>Shipping:</strong> ${e(o.customer.address)}</div>` : ''}
-            ${o.customer?.preferredSlot ? `<div><strong>Preferred slot:</strong> ${e(o.customer.preferredSlot)}</div>` : ''}
-          </div>
-        </article>`).join('')}
-      </div>`;
+            <div class="small" style="display:grid;gap:4px">
+              <div><strong>Customer:</strong> ${e(o.customer?.name)} · ${e(o.customer?.email)} · ${e(o.customer?.phone)}</div>
+              <div><strong>Items:</strong> ${e((o.items || []).map(i => `${i.name}${Number(i.qty || 1) > 1 ? ` × ${i.qty}` : ''} (${formatINR(i.price ?? i.unitPrice ?? 0)})`).join(', '))} · <strong>Total: ${e(formatINR(o.amount || 0))}</strong>${o.couponCode ? ` · Promo ${e(o.couponCode)}` : ''}</div>
+              ${o.paytmTxnId ? `<div><strong>Txn ID:</strong> ${e(o.paytmTxnId)}</div>` : ''}
+              ${o.customer?.address ? `<div><strong>Shipping:</strong> ${e(o.customer.address)}</div>` : ''}
+              ${o.customer?.preferredSlot ? `<div><strong>Preferred slot:</strong> ${e(o.customer.preferredSlot)}</div>` : ''}
+            </div>
+            <form class="order-track-form" data-order-track-form="${e(o.orderId)}">
+              <label>Courier / Carrier<input name="trackingCarrier" maxlength="80" value="${e(o.trackingCarrier || '')}" placeholder="e.g. Delhivery / India Post"></label>
+              <label>Tracking / AWB #<input name="trackingNumber" maxlength="100" value="${e(o.trackingNumber || '')}" placeholder="AWB tracking code"></label>
+              <label>Internal Note<input name="adminNotes" maxlength="1000" value="${e(o.adminNotes || '')}" placeholder="Dispatch or workshop notes"></label>
+              <button type="submit" class="btn btn-dark btn-sm">Save Tracking</button>
+            </form>
+          </article>`;
+        }).join('')}
+      </div>` : `<p class="muted">No orders match this filter yet.</p>`}`;
+
+      bodyEl.querySelector('[data-ord-search]')?.addEventListener('input', ev => {
+        orderQuery = ev.target.value;
+        const pos = ev.target.selectionStart;
+        draw();
+        const nextInp = bodyEl.querySelector('[data-ord-search]');
+        if (nextInp) {
+          nextInp.focus();
+          try { nextInp.setSelectionRange(pos, pos); } catch { /* ignore */ }
+        }
+      });
+
+      bodyEl.querySelectorAll('[data-ord-filter]').forEach(btn => btn.addEventListener('click', () => {
+        activeOrderFilter = btn.getAttribute('data-ord-filter');
+        draw();
+      }));
 
       bodyEl.querySelectorAll('[data-order-fulfill]').forEach(sel => sel.addEventListener('change', async () => {
         const id = sel.getAttribute('data-order-fulfill');
-        const token = localStorage.getItem('ycswu-admin-token-v1');
-        const parsedToken = token ? JSON.parse(token) : '';
-        await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(parsedToken ? { 'x-admin-token': parsedToken } : {})
-          },
-          body: JSON.stringify({ fulfillmentStatus: sel.value })
-        });
-        onToast?.('Order status updated');
+        const res = await updateOrder(id, { fulfillmentStatus: sel.value });
+        if (res.ok) {
+          const item = orders.find(x => x.orderId === id);
+          if (item) Object.assign(item, res.order || { fulfillmentStatus: sel.value });
+          draw();
+          onToast?.('Fulfillment status saved');
+        } else {
+          onToast?.(res.error || 'Update failed', true);
+        }
+      }));
+
+      bodyEl.querySelectorAll('[data-ord-mark-paid]').forEach(btn => btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-ord-mark-paid');
+        const res = await updateOrder(id, { paymentStatus: 'paid' });
+        if (res.ok) {
+          const item = orders.find(x => x.orderId === id);
+          if (item) Object.assign(item, res.order || { paymentStatus: 'paid' });
+          draw();
+          onToast?.(`Order ${id} marked paid`);
+        } else {
+          onToast?.(res.error || 'Could not update payment status', true);
+        }
+      }));
+
+      bodyEl.querySelectorAll('[data-order-track-form]').forEach(form => form.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const id = form.getAttribute('data-order-track-form');
+        const fd = new FormData(form);
+        const patch = {
+          trackingCarrier: String(fd.get('trackingCarrier') || '').trim(),
+          trackingNumber: String(fd.get('trackingNumber') || '').trim(),
+          adminNotes: String(fd.get('adminNotes') || '').trim()
+        };
+        const res = await updateOrder(id, patch);
+        if (res.ok) {
+          const item = orders.find(x => x.orderId === id);
+          if (item) Object.assign(item, res.order || patch);
+          draw();
+          onToast?.('Tracking info saved');
+        } else {
+          onToast?.(res.error || 'Could not save tracking', true);
+        }
       }));
     };
 
     draw();
+
+    container.querySelector('[data-ord-csv]')?.addEventListener('click', () => {
+      const headers = ['Order ID', 'Created', 'Customer', 'Email', 'Phone', 'Amount', 'Payment', 'Fulfillment', 'Carrier', 'Tracking #', 'Notes'];
+      const rows = orders.map(o => [
+        csvSafe(o.orderId),
+        csvSafe(o.createdAt),
+        csvSafe(o.customer?.name),
+        csvSafe(o.customer?.email),
+        csvSafe(o.customer?.phone),
+        csvSafe(o.amount),
+        csvSafe(o.paymentStatus),
+        csvSafe(o.fulfillmentStatus || 'new'),
+        csvSafe(o.trackingCarrier || ''),
+        csvSafe(o.trackingNumber || ''),
+        csvSafe(o.adminNotes || '')
+      ].join(','));
+      const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `ycswu-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+    });
   }
 
   async function renderInquiriesTab(container) {
@@ -883,9 +1254,12 @@ export function renderAdminStudio(root, {
     const bodyEl = container.querySelector('#inquiries-body');
 
     const draw = () => {
-      const filtered = activeInquiryFilter === 'all'
-        ? submissions
-        : submissions.filter(s => s.type === activeInquiryFilter);
+      const q = inquiryQuery.trim().toLowerCase();
+      const filtered = submissions.filter(s => {
+        if (activeInquiryFilter !== 'all' && s.type !== activeInquiryFilter) return false;
+        if (!q) return true;
+        return `${s.type} ${s.status} ${JSON.stringify(s.payload || {})}`.toLowerCase().includes(q);
+      });
       const types = [
         ['all', 'All'],
         ['enrollment', 'Course enrollments'],
@@ -894,7 +1268,10 @@ export function renderAdminStudio(root, {
         ['rsvp', 'Event RSVPs'],
         ['newsletter', 'Mailing list']
       ];
-      bodyEl.innerHTML = `<div class="policy-subnav">
+      bodyEl.innerHTML = `<div class="admin-search-row">
+        <input type="search" data-sub-search value="${e(inquiryQuery)}" placeholder="Search by name, email, order ID, or message…">
+      </div>
+      <div class="policy-subnav">
         ${types.map(([k, lbl]) => {
           const cnt = k === 'all' ? submissions.length : submissions.filter(s => s.type === k).length;
           return `<button type="button" class="policy-subtab ${activeInquiryFilter === k ? 'is-active' : ''}" data-sub-filter="${k}">${e(lbl)} (${cnt})</button>`;
@@ -911,16 +1288,16 @@ export function renderAdminStudio(root, {
               <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
                 <strong>${e(s.type.toUpperCase())}</strong>
                 ${payBadge}
-                <span class="small muted">${e(new Date(s.createdAt).toLocaleString('en-IN'))}</span>
+                <span class="small muted">${e(shortTime(s.createdAt))}</span>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
                 <span class="status-pill is-${e(s.status || 'new')}">${e(s.status || 'new')}</span>
-                <select data-sub-status="${e(s.id)}" aria-label="Update status" style="padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+                <select data-sub-status="${e(s.id)}" aria-label="Update status" style="padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12px;background:var(--surface)">
                   <option value="new" ${s.status === 'new' ? 'selected' : ''}>New</option>
                   <option value="contacted" ${s.status === 'contacted' ? 'selected' : ''}>Contacted</option>
                   <option value="resolved" ${s.status === 'resolved' ? 'selected' : ''}>Resolved</option>
                 </select>
-                <button type="button" class="text-link small" style="color:var(--coral-deep)" data-sub-del="${e(s.id)}">Delete</button>
+                <button type="button" class="text-link small" style="color:var(--rose-deep)" data-sub-del="${e(s.id)}">Delete</button>
               </div>
             </div>
             <div class="small" style="display:grid;gap:4px">
@@ -928,7 +1305,18 @@ export function renderAdminStudio(root, {
             </div>
           </article>`;
         }).join('')}
-      </div>` : `<p class="muted">No submissions in this category yet.</p>`}`;
+      </div>` : `<p class="muted">No submissions match this filter yet.</p>`}`;
+
+      bodyEl.querySelector('[data-sub-search]')?.addEventListener('input', ev => {
+        inquiryQuery = ev.target.value;
+        const pos = ev.target.selectionStart;
+        draw();
+        const nextInp = bodyEl.querySelector('[data-sub-search]');
+        if (nextInp) {
+          nextInp.focus();
+          try { nextInp.setSelectionRange(pos, pos); } catch { /* ignore */ }
+        }
+      });
 
       bodyEl.querySelectorAll('[data-sub-filter]').forEach(btn => btn.addEventListener('click', () => {
         activeInquiryFilter = btn.getAttribute('data-sub-filter');
@@ -977,14 +1365,14 @@ export function renderAdminStudio(root, {
       <div>
         <p class="eyebrow">Safety &amp; portability</p>
         <h1>Backup &amp; reset</h1>
-        <p>Export all website copy, courses, events, galleries, and policies as JSON, or restore the original imported site content.</p>
+        <p>Export all website copy, courses, events, galleries, and policies as JSON, clear tracking logs, or restore default content.</p>
       </div>
     </div>
     <div class="admin-cards-grid">
       <div class="admin-item-card">
         <strong>Export site JSON</strong>
         <p class="small muted" style="margin:0">Download a complete snapshot of your current published content.</p>
-        <div><button type="button" class="btn btn-olive btn-sm" data-b-export>Download site-backup.json</button></div>
+        <div><button type="button" class="btn btn-dark btn-sm" data-b-export>Download site-backup.json</button></div>
       </div>
       <div class="admin-item-card">
         <strong>Import site JSON</strong>
@@ -992,9 +1380,14 @@ export function renderAdminStudio(root, {
         <label class="btn btn-outline btn-sm" style="justify-self:start">Choose JSON file<input type="file" accept="application/json" data-b-import hidden></label>
       </div>
       <div class="admin-item-card">
+        <strong>Clear analytics tracking log</strong>
+        <p class="small muted" style="margin:0">Reset recorded page views, bag clicks, checkout starts, and visitor sessions to zero (orders and inquiries remain intact).</p>
+        <div><button type="button" class="btn btn-outline btn-sm" style="border-color:var(--rose-deep);color:var(--rose-deep)" data-b-clear-analytics>Clear analytics log</button></div>
+      </div>
+      <div class="admin-item-card">
         <strong>Restore factory defaults</strong>
         <p class="small muted" style="margin:0">Reset all text, courses, events, galleries, and policies back to the original imported youcanstitchwithus.com content.</p>
-        <div><button type="button" class="btn btn-outline btn-sm" style="border-color:var(--coral-deep);color:var(--coral-deep)" data-b-reset>Restore default content</button></div>
+        <div><button type="button" class="btn btn-outline btn-sm" style="border-color:var(--rose-deep);color:var(--rose-deep)" data-b-reset>Restore default content</button></div>
       </div>
     </div>`;
 
@@ -1019,6 +1412,11 @@ export function renderAdminStudio(root, {
       }
     });
 
+    container.querySelector('[data-b-clear-analytics]').addEventListener('click', async () => {
+      await clearAnalyticsData();
+      onToast?.('Analytics tracking log cleared.');
+    });
+
     container.querySelector('[data-b-reset]').addEventListener('click', async () => {
       const res = await resetSiteContent();
       data = normalizeContent(res.data || DEFAULT_CONTENT);
@@ -1030,11 +1428,16 @@ export function renderAdminStudio(root, {
   }
 
   renderShell();
-  loadSubmissions().then(list => {
-    const newCount = list.filter(x => x.status === 'new').length;
-    const badgeHost = root.querySelector('a[href="#admin/inquiries"]');
-    if (badgeHost && newCount && !badgeHost.querySelector('.admin-badge')) {
-      badgeHost.insertAdjacentHTML('beforeend', `<span class="admin-badge">${newCount}</span>`);
+  Promise.all([loadSubmissions(), loadOrders()]).then(([subList, ordList]) => {
+    const newInq = (subList || []).filter(x => x.status === 'new').length;
+    const pendingOrd = (ordList || []).filter(o => !['shipped', 'delivered', 'completed', 'cancelled'].includes(o.fulfillmentStatus || 'new')).length;
+    const inqHost = root.querySelector('a[href="#admin/inquiries"]');
+    if (inqHost && newInq && !inqHost.querySelector('.admin-badge')) {
+      inqHost.insertAdjacentHTML('beforeend', `<span class="admin-badge">${newInq}</span>`);
+    }
+    const ordHost = root.querySelector('a[href="#admin/orders"]');
+    if (ordHost && pendingOrd && !ordHost.querySelector('.admin-badge')) {
+      ordHost.insertAdjacentHTML('beforeend', `<span class="admin-badge">${pendingOrd}</span>`);
     }
   });
 }

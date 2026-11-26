@@ -4,87 +4,84 @@ import { CONTENT_SCHEMA, escapeHTML as e, normalizeContent, validateContent } fr
 export function contentInlineTargets(page = 'home') {
   const T = (key, selector, kinds = null, options = {}) => ({ key, selector, kinds, ...options });
   const list = [
-    T('navigation.home', '.desktop-nav > a[data-nav="home"]', null, { required: true }),
-    T('navigation.about', '.desktop-nav > a[data-nav="about"]', null, { required: true }),
-    T('navigation.events', '.desktop-nav > a[data-nav="events"]', null, { required: true }),
-    T('navigation.oneOnOne', '.desktop-nav > a[data-nav="1-on-1"]', null, { required: true }),
-    T('navigation.courses', '.desktop-nav > a[data-nav="courses"]', null, { required: true }),
+    T('brand.name', '[data-edit="brand.name"]', null, { required: true }),
+    T('navigation.about', '[data-edit="navigation.about"]', null, { required: true }),
+    T('navigation.events', '[data-edit="navigation.events"]', null, { required: true }),
+    T('navigation.oneOnOne', '[data-edit="navigation.oneOnOne"]', null, { required: true }),
+    T('navigation.courses', '[data-edit="navigation.courses"]', null, { required: true }),
 
-    T('home.heroTitlePrefix', '.home-hero-prefix', ['home']),
-    T('home.heroStitchText', '.home-hero-stitch', ['home'], { required: true }),
-    T('home.heroTitleSuffix', '.home-hero-suffix', ['home']),
-    T('home.heroSubtitle', '.home-hero-subtitle', ['home'], { required: true }),
-    T('home.ctaCourses', '.home-hero-actions a[href="#courses"]', ['home'], { required: true }),
-    T('home.ctaEvents', '.home-hero-actions a[href="#events"]', ['home'], { required: true }),
-    T('home.ctaPrivate', '.home-hero-actions a[href="#1-on-1"]', ['home'], { required: true }),
-    T('home.makersHeading', '.makers-heading', ['home'], { required: true }),
-    T('home.makersBody1', '.makers-p1', ['home'], { multiline: true }),
-    T('home.makersBody2', '.makers-p2', ['home']),
-    T('home.makersSignoff', '.makers-signoff', ['home']),
-    T('home.collabHeading', '.collaborate-card h2', ['home'], { required: true }),
-    T('home.collabBody', '.collaborate-card p', ['home'], { multiline: true }),
-    T('home.collabButton', '.collaborate-actions .btn-sage', ['home'], { required: true }),
-    T('home.instaHeading', '.instagram-card h2 span', ['home'], { required: true }),
-    T('home.instaSubtext', '.insta-subtext a', ['home'], { required: true }),
+    T('home.heroSubtitle', '[data-edit="home.heroSubtitle"]', ['home'], { required: true }),
+    T('home.heroStitchText', '[data-edit="home.heroStitchText"]', ['home'], { type: 'pick' }),
+    T('home.makersBody1', '[data-edit="home.makersBody1"]', ['home'], { multiline: true }),
+    T('home.tealHeading', '[data-edit="home.tealHeading"]', ['home'], { required: true, multiline: true, allowChildren: true }),
+    T('about.communityP3', '.teal-copy [data-edit="about.communityP3"]', ['home'], { multiline: true }),
+    T('home.tealCtaLabel', '[data-edit="home.tealCtaLabel"]', ['home'], { required: true }),
+    T('home.tealHandNote', '[data-edit="home.tealHandNote"]', ['home'], { multiline: true, allowChildren: true }),
+    T('home.railHeading', '[data-edit="home.railHeading"]', ['home'], { required: true, multiline: true, allowChildren: true }),
+    T('home.galleryEyebrow', '[data-edit="home.galleryEyebrow"]', ['home'], { required: true }),
+    T('home.makersHeading', '[data-edit="home.makersHeading"]', ['home'], { required: true, allowChildren: true }),
+    T('home.meetupsTitle', '[data-edit="home.meetupsTitle"]', ['home'], { required: true, allowChildren: true }),
+    T('home.closingKicker', '[data-edit="home.closingKicker"]', ['home'], { required: true }),
+    T('home.closingHeading', '[data-edit="home.closingHeading"]', ['home'], { required: true, multiline: true, allowChildren: true }),
+    T('home.makersSignoff', '[data-edit="home.makersSignoff"]', ['home']),
+    T('home.collabBody', '[data-edit="home.collabBody"]', ['home'], { multiline: true }),
+    T('home.closingCtaLabel', '[data-edit="home.closingCtaLabel"]', ['home'], { required: true }),
+    T('home.collabButton', '[data-edit="home.collabButton"]', ['home'], { required: true }),
+    T('home.closingHandNote', '[data-edit="home.closingHandNote"]', ['home'], { multiline: true, allowChildren: true }),
 
-    T('about.pageTitle', '.page-banner h1', ['about'], { required: true }),
-    T('about.communityHeading', '.about-panel:first-child h2 span', ['about'], { required: true }),
-    T('about.communityP1', '.about-p1', ['about'], { multiline: true }),
-    T('about.communityP2', '.about-p2', ['about'], { multiline: true }),
-    T('about.communityP3', '.about-p3', ['about'], { multiline: true }),
-    T('about.communityP4', '.about-p4', ['about'], { multiline: true }),
-    T('about.founderName', '.about-panel:last-child h2 span', ['about'], { required: true }),
-    T('about.founderRole', '.about-panel:last-child .eyebrow', ['about'], { required: true }),
-    T('about.founderBio', '.founder-bio', ['about'], { multiline: true }),
-    T('about.founderNote', '.founder-note a', ['about'], { required: true }),
+    T('about.pageTitle', '[data-edit="about.pageTitle"]', ['about'], { required: true }),
+    T('about.communityHeading', '[data-edit="about.communityHeading"]', ['about'], { required: true }),
+    T('about.communityP1', '[data-edit="about.communityP1"]', ['about'], { multiline: true }),
+    T('about.communityP2', '[data-edit="about.communityP2"]', ['about'], { multiline: true }),
+    T('about.communityP3', '.section-pad [data-edit="about.communityP3"]', ['about'], { multiline: true }),
+    T('about.communityP4', '[data-edit="about.communityP4"]', ['about'], { multiline: true }),
+    T('about.founderName', '[data-edit="about.founderName"]', ['about'], { required: true }),
+    T('about.founderRole', '[data-edit="about.founderRole"]', ['about'], { required: true }),
+    T('about.founderBio', '[data-edit="about.founderBio"]', ['about'], { multiline: true }),
+    T('about.founderNote', '[data-edit="about.founderNote"]', ['about'], { required: true }),
 
-    T('coursesPage.heading', '.page-banner h1', ['courses'], { required: true }),
-    T('coursesPage.subheading', '.page-banner p', ['courses']),
-    T('coursesPage.paymentNote', '.payment-note', ['courses'], { multiline: true }),
-    T('coursesPage.kitHeading', '.kit-band h2', ['courses'], { required: true }),
-    T('coursesPage.kitButtonLabel', '.kit-band .btn-sage', ['courses'], { required: true }),
-    T('coursesPage.videoCaption', '.course-video-caption', ['courses']),
-    T('coursesPage.howToHeading', '.steps-band h2', ['courses'], { required: true }),
-    T('coursesPage.step1Title', '.step1-title', ['courses'], { required: true }),
-    T('coursesPage.step1Desc', '.step1-desc', ['courses']),
-    T('coursesPage.step2Title', '.step2-title', ['courses'], { required: true }),
-    T('coursesPage.step2Desc', '.step2-desc', ['courses']),
-    T('coursesPage.step3Title', '.step3-title', ['courses'], { required: true }),
-    T('coursesPage.step3Desc', '.step3-desc', ['courses']),
-    T('coursesPage.step4Title', '.step4-title', ['courses'], { required: true }),
-    T('coursesPage.step4Desc', '.step4-desc', ['courses']),
+    T('coursesPage.heading', '[data-edit="coursesPage.heading"]', ['courses'], { required: true }),
+    T('coursesPage.subheading', '[data-edit="coursesPage.subheading"]', ['courses']),
+    T('coursesPage.paymentNote', '[data-edit="coursesPage.paymentNote"]', ['courses'], { multiline: true }),
+    T('coursesPage.kitHeading', '[data-edit="coursesPage.kitHeading"]', ['courses'], { required: true }),
+    T('coursesPage.kitButtonLabel', '[data-edit="coursesPage.kitButtonLabel"]', ['courses'], { required: true }),
+    T('coursesPage.videoCaption', '[data-edit="coursesPage.videoCaption"]', ['courses']),
+    T('coursesPage.howToHeading', '[data-edit="coursesPage.howToHeading"]', ['courses'], { required: true }),
+    T('coursesPage.step1Title', '[data-edit="coursesPage.step1Title"]', ['courses'], { required: true }),
+    T('coursesPage.step1Desc', '[data-edit="coursesPage.step1Desc"]', ['courses']),
+    T('coursesPage.step2Title', '[data-edit="coursesPage.step2Title"]', ['courses'], { required: true }),
+    T('coursesPage.step2Desc', '[data-edit="coursesPage.step2Desc"]', ['courses']),
+    T('coursesPage.step3Title', '[data-edit="coursesPage.step3Title"]', ['courses'], { required: true }),
+    T('coursesPage.step3Desc', '[data-edit="coursesPage.step3Desc"]', ['courses']),
+    T('coursesPage.step4Title', '[data-edit="coursesPage.step4Title"]', ['courses'], { required: true }),
+    T('coursesPage.step4Desc', '[data-edit="coursesPage.step4Desc"]', ['courses']),
 
-    T('eventsPage.heading', '.page-banner h1', ['events'], { required: true }),
-    T('eventsPage.testimonialsHeading', '.testimonial-band-title', ['events']),
+    T('eventsPage.heading', '[data-edit="eventsPage.heading"]', ['events'], { required: true }),
 
-    T('oneOnOne.title', '.session-hero-copy h1', ['1-on-1'], { required: true }),
-    T('oneOnOne.badge', '.session-pill', ['1-on-1']),
-    T('oneOnOne.priceLabel', '.session-hero-copy p[style*="font-size:1.25rem"]', ['1-on-1']),
-    T('oneOnOne.ctaLabel', '.session-hero-copy .btn-sage', ['1-on-1'], { required: true }),
-    T('oneOnOne.serviceDescription', '.session-desc', ['1-on-1'], { multiline: true }),
-    T('oneOnOne.learnHeading', '.session-split-copy.is-sage h2', ['1-on-1'], { required: true }),
-    T('oneOnOne.learnP1', '.learn-p1', ['1-on-1'], { multiline: true }),
-    T('oneOnOne.learnP2', '.learn-p2', ['1-on-1'], { multiline: true }),
-    T('oneOnOne.hostHeading', '.session-split-copy.is-butter h2', ['1-on-1'], { required: true }),
-    T('oneOnOne.hostP1', '.host-p1', ['1-on-1'], { multiline: true }),
-    T('oneOnOne.hostP2', '.host-p2', ['1-on-1'], { multiline: true }),
-    T('oneOnOne.hostP3', '.host-p3', ['1-on-1'], { multiline: true }),
+    T('oneOnOne.title', '[data-edit="oneOnOne.title"]', ['1-on-1'], { required: true }),
+    T('oneOnOne.priceLabel', '[data-edit="oneOnOne.priceLabel"]', ['1-on-1']),
+    T('oneOnOne.ctaLabel', '[data-edit="oneOnOne.ctaLabel"]', ['1-on-1'], { required: true }),
+    T('oneOnOne.serviceDescription', '[data-edit="oneOnOne.serviceDescription"]', ['1-on-1'], { multiline: true }),
+    T('oneOnOne.learnHeading', '[data-edit="oneOnOne.learnHeading"]', ['1-on-1'], { required: true }),
+    T('oneOnOne.learnP1', '[data-edit="oneOnOne.learnP1"]', ['1-on-1'], { multiline: true }),
+    T('oneOnOne.learnP2', '[data-edit="oneOnOne.learnP2"]', ['1-on-1'], { multiline: true }),
+    T('oneOnOne.hostHeading', '[data-edit="oneOnOne.hostHeading"]', ['1-on-1'], { required: true }),
+    T('oneOnOne.hostP1', '[data-edit="oneOnOne.hostP1"]', ['1-on-1'], { multiline: true }),
+    T('oneOnOne.hostP2', '[data-edit="oneOnOne.hostP2"]', ['1-on-1'], { multiline: true }),
+    T('oneOnOne.hostP3', '[data-edit="oneOnOne.hostP3"]', ['1-on-1'], { multiline: true }),
 
-    T('contact.heading', '.page-banner h1', ['contact'], { required: true }),
-    T('contact.subheading', '.contact-info-card h2', ['contact'], { required: true }),
-    T('contact.p1', '.contact-p1', ['contact'], { multiline: true }),
-    T('contact.p2', '.contact-p2', ['contact'], { multiline: true }),
-    T('contact.submitLabel', '.contact-form-card button[type="submit"]', ['contact'], { required: true }),
+    T('contact.heading', '[data-edit="contact.heading"]', ['contact'], { required: true }),
+    T('contact.subheading', '[data-edit="contact.subheading"]', ['contact'], { required: true }),
+    T('contact.p1', '[data-edit="contact.p1"]', ['contact'], { multiline: true }),
+    T('contact.p2', '[data-edit="contact.p2"]', ['contact'], { multiline: true }),
+    T('contact.submitLabel', '[data-edit="contact.submitLabel"]', ['contact'], { required: true }),
 
-    T('footer.newsletterHeading', '.newsletter-heading', null),
-    T('footer.newsletterButton', 'form[data-form="newsletter"] button[type="submit"]', null, { required: true }),
-    T('footer.termsLabel', '#footer a[href="#terms"]', null, { required: true }),
-    T('footer.privacyLabel', '#footer a[href="#privacy"]', null, { required: true }),
-    T('footer.contactLabel', '#footer a[href="#contact"]', null, { required: true }),
-    T('footer.shippingLabel', '#footer a[href="#shipping"]', null, { required: true }),
-    T('footer.usageLabel', '#footer a[href="#usage-guidelines"]', null, { required: true }),
-    T('footer.copyrightLine1', '.footer-bottom > div:first-child > div:first-child', null, { required: true }),
-    T('footer.copyrightLine2', '.footer-bottom > div:first-child > div:last-child', null, { required: true })
+    T('footer.newsletterButton', '[data-edit="footer.newsletterButton"]', null, { required: true }),
+    T('footer.termsLabel', '[data-edit="footer.termsLabel"]', null, { required: true }),
+    T('footer.privacyLabel', '[data-edit="footer.privacyLabel"]', null, { required: true }),
+    T('footer.contactLabel', '[data-edit="footer.contactLabel"]', null, { required: true }),
+    T('footer.shippingLabel', '[data-edit="footer.shippingLabel"]', null, { required: true }),
+    T('footer.usageLabel', '[data-edit="footer.usageLabel"]', null, { required: true })
   ];
 
   const policyMap = {
@@ -97,17 +94,17 @@ export function contentInlineTargets(page = 'home') {
   if (policyMap[page]) {
     const pKey = policyMap[page];
     list.push(
-      T(`policies.${pKey}Title`, '.policy-doc h1', [page], { required: true }),
-      T(`policies.${pKey}Body`, '.policy-body', [page], { type: 'pick' })
+      T(`policies.${pKey}Title`, `[data-edit="policies.${pKey}Title"]`, [page], { required: true }),
+      T(`policies.${pKey}Body`, `[data-edit="policies.${pKey}Body"]`, [page], { type: 'pick' })
     );
   }
 
   // Green pick/jump targets for structured collections
   list.push(
-    { id: 'goto:courses', selector: '.course-card', kinds: ['courses'], type: 'goto', tab: 'courses', tabLabel: 'Courses & pricing', label: 'Course tiers & checklists' },
+    { id: 'goto:courses', selector: '.tier-card', kinds: ['courses'], type: 'goto', tab: 'courses', tabLabel: 'Courses & pricing', label: 'Course tiers & checklists' },
     { id: 'goto:events', selector: '.event-card', kinds: ['events'], type: 'goto', tab: 'events', tabLabel: 'Events & workshops', label: 'Workshops & events' },
     { id: 'goto:testimonials', selector: '.testimonial-band', kinds: ['home', 'courses', 'events', '1-on-1'], type: 'goto', tab: 'testimonials', tabLabel: 'Testimonials', label: 'Community testimonials' },
-    { id: 'goto:galleries', selector: '.slideshow-card, .masonry-grid, .session-gallery', kinds: ['home', 'events', '1-on-1'], type: 'goto', tab: 'galleries', tabLabel: 'Photo galleries', label: 'Photo galleries' }
+    { id: 'goto:galleries', selector: '.showcase-stage, .masonry-grid, .session-gallery', kinds: ['home', 'events', '1-on-1'], type: 'goto', tab: 'galleries', tabLabel: 'Photo galleries', label: 'Photo galleries' }
   );
 
   return list;
@@ -197,6 +194,8 @@ export function mountLiveSiteEditor({
         jumpInfo = { label: target.label || 'This section', href: `#admin/${target.tab}`, tabLabel: target.tabLabel || 'Admin Studio' };
       } else if (target.contentKey?.startsWith('policies.')) {
         jumpInfo = { label: 'Full policy text', href: '#admin/policies', tabLabel: 'Pages & policies' };
+      } else {
+        jumpInfo = { label: target.label || 'This text', href: '#admin/content', tabLabel: 'Storefront editor' };
       }
       renderBar();
     }
@@ -235,7 +234,7 @@ export function mountLiveSiteEditor({
       <div class="live-editor-actions">
         <a class="btn btn-outline btn-sm" href="#admin">Admin Studio ↗</a>
         <button type="button" class="btn btn-outline btn-sm" data-live-action="discard" ${busy ? 'disabled' : ''}>${dirtyCount ? 'Discard' : 'Done'}</button>
-        <button type="button" class="btn btn-sage btn-sm" data-live-action="publish" ${busy || !dirtyCount ? 'disabled' : ''}>${busy ? 'Publishing…' : 'Publish changes'}</button>
+        <button type="button" class="btn-lime btn-sm" data-live-action="publish" ${busy || !dirtyCount ? 'disabled' : ''}>${busy ? 'Publishing…' : 'Publish changes'}</button>
       </div>
     </div>`;
   }

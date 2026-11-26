@@ -83,16 +83,17 @@ test('dev persistence server serves static files, admin auth, site-data CRUD, an
     assert.equal(homeRes.status, 200);
     const homeHtml = await homeRes.text();
     assert.match(homeHtml, /You Can Stitch With Us/);
+    assert.match(homeHtml, /Shrikhand/);
+    assert.match(homeHtml, /css\/admin\.css/);
 
-    // Standalone UI/UX redesign folder routes
-    const redesignIndex = await fetch(`${baseUrl}/redesign/`);
-    assert.equal(redesignIndex.status, 200);
-    assert.match(await redesignIndex.text(), /Shrikhand/);
-    assert.equal((await fetch(`${baseUrl}/redesign/css/style.css`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/redesign/js/app.js`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/redesign/shared/site-content.js`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/redesign/assets/images/logo-nav.png`)).status, 200);
-    assert.equal((await fetch(`${baseUrl}/redesign/img/embroidery-bg.jpg`)).status, 200);
+    const adminRedirect = await fetch(`${baseUrl}/admin`);
+    assert.equal(adminRedirect.status, 200);
+    assert.match(await adminRedirect.text(), /Admin Studio/);
+
+    assert.equal((await fetch(`${baseUrl}/assets/images/embroidery-bg.jpg`)).status, 200);
+    const legacyRedirect = await fetch(`${baseUrl}/redesign/`, { redirect: 'manual' });
+    assert.equal(legacyRedirect.status, 302);
+    assert.equal(legacyRedirect.headers.get('location'), '/');
 
     const healthRes = await fetch(`${baseUrl}/api/health`);
     assert.equal(healthRes.status, 200);
@@ -282,14 +283,72 @@ test('dev persistence server serves static files, admin auth, site-data CRUD, an
         'Content-Type': 'application/json',
         'x-admin-token': token
       },
-      body: JSON.stringify({ fulfillmentStatus: 'shipped' })
+      body: JSON.stringify({
+        fulfillmentStatus: 'shipped',
+        trackingCarrier: 'Delhivery',
+        trackingNumber: 'DLV123456',
+        adminNotes: 'Kit shipped'
+      })
     });
     assert.equal(patchOrderRes.status, 200);
+    const patchedOrderJson = await patchOrderRes.json();
+    assert.equal(patchedOrderJson.order.trackingCarrier, 'Delhivery');
+    assert.equal(patchedOrderJson.order.trackingNumber, 'DLV123456');
+    assert.equal(patchedOrderJson.order.adminNotes, 'Kit shipped');
+
+    const ordersAfterPatch = await (await fetch(`${baseUrl}/api/orders`, {
+      headers: { 'x-admin-token': token }
+    })).json();
+    const updatedOrder = ordersAfterPatch.orders.find(o => o.orderId === paidInit.orderId);
+    assert.equal(updatedOrder.fulfillmentStatus, 'shipped');
+    assert.equal(updatedOrder.trackingCarrier, 'Delhivery');
+    assert.equal(updatedOrder.trackingNumber, 'DLV123456');
 
     const subsAfter = await (await fetch(`${baseUrl}/api/submissions`, {
       headers: { 'x-admin-token': token }
     })).json();
     assert.equal(subsAfter.submissions.some(s => s.payload.orderId === paidInit.orderId && s.payload.paymentStatus === 'paid'), true);
+
+    // Analytics & conversion tracking APIs
+    const trackPv = await fetch(`${baseUrl}/api/analytics/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'page_view', route: '#home', sessionId: 'sess-1', device: 'mobile', referrer: 'instagram.com' })
+    });
+    assert.equal(trackPv.status, 201);
+
+    const trackAdd = await fetch(`${baseUrl}/api/analytics/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'bag_add', route: '#courses', label: 'Wizard Plus', sessionId: 'sess-1', device: 'mobile', meta: { itemId: 'wizard-plus', price: 4999 } })
+    });
+    assert.equal(trackAdd.status, 201);
+
+    const unauthSummary = await fetch(`${baseUrl}/api/analytics/summary`);
+    assert.equal(unauthSummary.status, 401);
+
+    const summaryRes = await fetch(`${baseUrl}/api/analytics/summary?days=7`, {
+      headers: { 'x-admin-token': token }
+    });
+    assert.equal(summaryRes.status, 200);
+    const summary = await summaryRes.json();
+    assert.equal(summary.kpis.pageViews, 1);
+    assert.equal(summary.kpis.paidOrders, 1);
+    assert.equal(summary.kpis.paidRevenue, 4249);
+    assert.equal(summary.devices.mobile, 1);
+    assert.equal(summary.topPages[0].route, '#home');
+    assert.ok(Array.isArray(summary.funnel) && summary.funnel.length === 4);
+    assert.ok(Array.isArray(summary.recentActivity) && summary.recentActivity.length >= 2);
+
+    const clearAnalytics = await fetch(`${baseUrl}/api/analytics`, {
+      method: 'DELETE',
+      headers: { 'x-admin-token': token }
+    });
+    assert.equal(clearAnalytics.status, 200);
+    const clearedSummary = await (await fetch(`${baseUrl}/api/analytics/summary`, {
+      headers: { 'x-admin-token': token }
+    })).json();
+    assert.equal(clearedSummary.kpis.pageViews, 0);
   } finally {
     await app.closeAll();
     await rm(tmpDir, { recursive: true, force: true });

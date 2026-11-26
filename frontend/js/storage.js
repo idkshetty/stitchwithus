@@ -2,6 +2,7 @@ import { DEFAULT_CONTENT, normalizeContent } from './site-content.js';
 
 const LOCAL_CONTENT_KEY = 'ycswu-site-data-v1';
 const LOCAL_SUBMISSIONS_KEY = 'ycswu-submissions-v1';
+const LOCAL_ORDERS_KEY = 'ycswu-orders-v1';
 const LOCAL_TOKEN_KEY = 'ycswu-admin-token-v1';
 const SYNC_CHANNEL_NAME = 'ycswu-live-sync-v1';
 const liveChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(SYNC_CHANNEL_NAME) : null;
@@ -279,6 +280,46 @@ export async function deleteSubmission(id) {
   const list = readLocalJson(LOCAL_SUBMISSIONS_KEY, []).filter(item => item.id !== id);
   writeLocalJson(LOCAL_SUBMISSIONS_KEY, list);
   return true;
+}
+
+export async function loadOrders() {
+  try {
+    const res = await fetch('/api/orders', { headers: authHeaders(), cache: 'no-store' });
+    if (res.ok) {
+      const out = await res.json();
+      return out.orders || [];
+    }
+  } catch {
+    /* static fallback */
+  }
+  return readLocalJson(LOCAL_ORDERS_KEY, []);
+}
+
+export async function updateOrder(orderId, patch = {}) {
+  try {
+    const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(patch)
+    });
+    if (res.ok) {
+      const out = await res.json();
+      return { ok: true, order: out.order };
+    }
+    if (!isStaticFallbackStatus(res.status)) {
+      const err = await res.json().catch(() => ({}));
+      return { ok: false, error: err.error || 'Could not update order.' };
+    }
+  } catch {
+    /* static fallback */
+  }
+  const list = readLocalJson(LOCAL_ORDERS_KEY, []);
+  const idx = list.findIndex(o => o.orderId === orderId);
+  if (idx < 0) return { ok: false, error: 'Order not found.' };
+  const updated = { ...list[idx], ...patch, updatedAt: new Date().toISOString() };
+  list[idx] = updated;
+  writeLocalJson(LOCAL_ORDERS_KEY, list);
+  return { ok: true, order: updated };
 }
 
 export async function uploadImageFile(file) {

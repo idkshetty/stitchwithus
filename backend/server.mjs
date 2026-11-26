@@ -5,6 +5,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CONTENT, normalizeContent } from '../frontend/js/site-content.js';
+import { computeAnalyticsSummary } from '../frontend/js/analytics.js';
 import {
   fetchPaytmTransactionStatus,
   getPaytmConfig,
@@ -195,6 +196,7 @@ export function createBackendServer({
   const siteDataPath = path.join(dataDir, 'site-data.json');
   const submissionsPath = path.join(dataDir, 'submissions.json');
   const ordersPath = path.join(dataDir, 'orders.json');
+  const analyticsPath = path.join(dataDir, 'analytics.json');
   const paytmConfig = getPaytmConfig(paytmEnv);
   const sessions = new Map();
   const liveClients = new Set();
@@ -547,13 +549,37 @@ export function createBackendServer({
           return;
         }
         const body = await readJsonBody(req, 32 * 1024);
-        const fulfillmentStatus = String(body.fulfillmentStatus || '');
-        if (!['new', 'contacted', 'shipped', 'completed', 'cancelled'].includes(fulfillmentStatus)) {
-          sendJson(req, res, 400, { error: 'Invalid fulfillment status.' });
+        const patch = {};
+        if ('fulfillmentStatus' in body) {
+          const fulfillmentStatus = String(body.fulfillmentStatus || '');
+          if (!['new', 'contacted', 'packed', 'shipped', 'delivered', 'completed', 'cancelled'].includes(fulfillmentStatus)) {
+            sendJson(req, res, 400, { error: 'Invalid fulfillment status.' });
+            return;
+          }
+          patch.fulfillmentStatus = fulfillmentStatus;
+        }
+        let paymentUpdated = false;
+        if ('paymentStatus' in body) {
+          const paymentStatus = String(body.paymentStatus || '');
+          if (!['pending', 'paid', 'failed'].includes(paymentStatus)) {
+            sendJson(req, res, 400, { error: 'Invalid payment status.' });
+            return;
+          }
+          patch.paymentStatus = paymentStatus;
+          paymentUpdated = paymentStatus !== orders[idx].paymentStatus;
+        }
+        if ('trackingCarrier' in body) patch.trackingCarrier = String(body.trackingCarrier || '').trim().slice(0, 80);
+        if ('trackingNumber' in body) patch.trackingNumber = String(body.trackingNumber || '').trim().slice(0, 100);
+        if ('adminNotes' in body) patch.adminNotes = String(body.adminNotes || '').trim().slice(0, 1000);
+        if (!Object.keys(patch).length) {
+          sendJson(req, res, 400, { error: 'No valid fields to update.' });
           return;
         }
-        orders[idx] = { ...orders[idx], fulfillmentStatus, updatedAt: new Date().toISOString() };
+        orders[idx] = { ...orders[idx], ...patch, updatedAt: new Date().toISOString() };
         await writeJsonAtomic(ordersPath, orders);
+        if (paymentUpdated) {
+          await recordOrderSubmission(orders[idx]);
+        }
         sendJson(req, res, 200, { ok: true, order: orders[idx] });
         return;
       }
@@ -682,6 +708,72 @@ export function createBackendServer({
         const filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
         await writeFile(path.join(uploadDir, filename), buffer);
         sendJson(req, res, 201, { ok: true, url: `assets/uploads/${filename}` });
+        return;
+      }
+
+      if (pathname === '/api/analytics/event' && req.method === 'POST') {
+        const body = await readJsonBody(req, 32 * 1024);
+        const type = String(body.type || '').trim();
+        const allowedAnalytics = new Set([
+          'page_view', 'bag_add', 'bag_open', 'checkout_start', 'coupon_apply',
+          'order_paid', 'order_failed', 'order_manual', 'form_submit', 'outbound_click', 'cta_click'
+        ]);
+        if (!allowedAnalytics.has(type)) {
+          sendJson(req, res, 400, { error: 'Unsupported analytics event type.' });
+          return;
+        }
+        const safeMeta = {};
+        if (body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta)) {
+          for (const [k, v] of Object.entries(body.meta).slice(0, 10)) {
+            const key = String(k).trim().slice(0, 40);
+            if (!key) continue;
+            if (typeof v === 'number' || typeof v === 'boolean') safeMeta[key] = v;
+            else if (typeof v === 'string') safeMeta[key] = v.slice(0, 120);
+          }
+        }
+        const rawDevice = String(body.device || 'desktop');
+        const evRecord = {
+          id: crypto.randomUUID(),
+          type,
+          route: String(body.route || '#home').trim().slice(0, 120),
+          label: String(body.label || '').trim().slice(0, 160),
+          sessionId: String(body.sessionId || '').trim().slice(0, 80),
+          device: ['mobile', 'tablet', 'desktop'].includes(rawDevice) ? rawDevice : 'desktop',
+          referrer: String(body.referrer || 'Direct').trim().slice(0, 160),
+          meta: safeMeta,
+          createdAt: new Date().toISOString()
+        };
+        const list = (await readJsonFile(analyticsPath, [])) || [];
+        list.unshift(evRecord);
+        await writeJsonAtomic(analyticsPath, list.slice(0, 10000));
+        sendJson(req, res, 201, { ok: true, id: evRecord.id });
+        return;
+      }
+
+      if (pathname === '/api/analytics/summary' && req.method === 'GET') {
+        if (!requireAdmin(req, res)) return;
+        const days = Math.max(0, Math.min(365, Math.floor(Number(url.searchParams.get('days') || 0))));
+        const [events, orders, submissions, savedContent] = await Promise.all([
+          readJsonFile(analyticsPath, []),
+          readJsonFile(ordersPath, []),
+          readJsonFile(submissionsPath, []),
+          readJsonFile(siteDataPath, null)
+        ]);
+        const summary = computeAnalyticsSummary({
+          events: events || [],
+          orders: orders || [],
+          submissions: submissions || [],
+          siteContent: savedContent || DEFAULT_CONTENT,
+          days
+        });
+        sendJson(req, res, 200, summary);
+        return;
+      }
+
+      if (pathname === '/api/analytics' && req.method === 'DELETE') {
+        if (!requireAdmin(req, res)) return;
+        await writeJsonAtomic(analyticsPath, []);
+        sendJson(req, res, 200, { ok: true });
         return;
       }
 
