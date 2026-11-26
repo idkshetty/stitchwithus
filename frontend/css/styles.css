@@ -483,6 +483,10 @@ button { cursor: pointer; background: none; border: 0; }
 .closing-title {
   white-space: pre-line;
 }
+.hand-arrow-desktop {
+  margin-left: -106px;
+  margin-top: -48px;
+}
 .hand-arrow-mobile { display: none; }
 
 .teal-media-wrap {
@@ -647,8 +651,6 @@ button { cursor: pointer; background: none; border: 0; }
   transition: background 0.15s ease;
 }
 .rail-more-pill:hover { background: var(--lime-hover); }
-
-.arrow-mobile { display: none; }
 
 /* Band 4: Community Archive & Testimonials */
 .section-pad { padding: clamp(48px, 6vw, 84px) 0; }
@@ -822,15 +824,20 @@ button { cursor: pointer; background: none; border: 0; }
   margin-top: 4px;
 }
 .closing-hand-note {
-  position: absolute;
-  left: calc(100% + 22px);
-  top: -10px;
-  transform: rotate(-10deg);
-  display: grid;
-  justify-items: center;
+  flex-basis: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-left: 42px;
+  transform: rotate(-3deg);
   color: var(--ink);
-  pointer-events: none;
   white-space: nowrap;
+}
+.closing-arrow {
+  flex-shrink: 0;
+  margin-top: -4px;
 }
 
 /* Band 6: Giant Cropped Script Footer (#eceeea) */
@@ -1123,17 +1130,10 @@ button { cursor: pointer; background: none; border: 0; }
 @media (max-width: 760px) {
   .closing-cta-row { width: 100%; }
   .closing-hand-note {
-    position: static;
-    width: 100%;
+    padding-left: 12px;
     transform: rotate(-2deg);
-    margin-top: 10px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 10px;
+    margin-top: 8px;
   }
-  .arrow-desktop { display: none; }
-  .arrow-mobile { display: block; flex-shrink: 0; }
 }
 
 @media (max-width: 860px) {

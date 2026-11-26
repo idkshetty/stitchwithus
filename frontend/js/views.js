@@ -188,8 +188,8 @@ export function homeMarkup(data) {
         </a>
         <div class="hand-note-wrap">
           <span class="hand-note-text" data-edit="home.tealHandNote">${e(h.tealHandNote).replace(/\n/g, '<br>')}</span>
-          <svg class="hand-arrow-desktop" width="80" height="46" viewBox="0 0 80 46" fill="none" aria-hidden="true">
-            <path d="M66 10 C50 38, 22 38, 8 14 M5 24 L8 13 L18 17" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg class="hand-arrow-desktop" width="84" height="34" viewBox="0 0 84 34" fill="none" aria-hidden="true">
+            <path d="M78 24 C50 26, 26 20, 10 8 M11 19 L9 7 L21 8" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <svg class="hand-arrow-mobile" width="58" height="58" viewBox="0 0 58 58" fill="none" aria-hidden="true">
             <path d="M18 50 C48 48, 52 14, 8 14 M16 7 L7 14 L16 21" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
@@ -313,13 +313,10 @@ export function homeMarkup(data) {
         </a>
         ${data.sections.showCollaborate !== false ? `<a href="${e(safeLink(h.collabFormUrl))}" target="_blank" rel="noopener noreferrer" class="btn btn-outline" data-edit="home.collabButton">${e(h.collabButton)}</a>` : ''}
         <div class="closing-hand-note">
-          <svg class="arrow-mobile" width="54" height="44" viewBox="0 0 54 44" fill="none" aria-hidden="true">
-            <path d="M46 38 C22 36, 12 22, 10 6 M4 14 L10 5 L18 12" stroke="#0c1a1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg class="closing-arrow" width="64" height="44" viewBox="0 0 64 44" fill="none" aria-hidden="true">
+            <path d="M56 36 C28 36, 16 24, 12 6 M5 14 L12 5 L20 12" stroke="#0c1a1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span class="hand-note-text" data-edit="home.closingHandNote" style="font-size:1.3rem">${e(h.closingHandNote).replace(/\n/g, '<br>')}</span>
-          <svg class="arrow-desktop" width="64" height="44" viewBox="0 0 64 46" fill="none" aria-hidden="true">
-            <path d="M48 6 C38 28, 22 36, 8 28 M15 22 L7 28 L14 36" stroke="#0c1a1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
         </div>
       </div>
     </div>
